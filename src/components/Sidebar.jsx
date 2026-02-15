@@ -182,7 +182,7 @@ export const Sidebar = ({ isOpen, onClose }) => {
           <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 px-3 py-2.5 rounded-lg">
             <div className="flex items-center gap-2">
               <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 215.646 3.646 9.003 9.003 0 0120.354 15.354z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 6.636L5.636 5.222M18.364 5.636l-1.414 1.414M7.05 17.364l-1.414 1.414M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
             </div>

@@ -131,7 +131,7 @@ export default function Room() {
   };
 
   const copyRoomLink = () => {
-    const link = `${window.location.origin}/rooms/${id}`;
+    const link = `${window.location.origin}/room/${id}`;
     navigator.clipboard.writeText(link);
     toast.success('Room link copied!');
   };
