@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  /* This tells Tailwind that 'bg-background' and 'bg-surface' are valid classes */
+  --color-background: #0f172a;
+  --color-surface: #111827;
+  --color-border-glow: rgba(255, 255, 255, 0.1);
+}
+
+@layer base {
+  :root {
+    --bg-color: #0f172a;
+    --accent-1: rgba(99, 102, 241, 0.15);
+    --accent-2: rgba(168, 85, 247, 0.15);
+  }
+
+  body {
+    /* Using the variable we just defined in @theme */
+    @apply bg-background m-0 overflow-x-hidden;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, button {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer components {
+  .glow-text {
+    @apply transition-all duration-300 cursor-default;
+  }
+  .glow-text:hover {
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(99, 102, 241, 0.2);
+    transform: translateY(-2px);
+  }
+}
+/* Keep your mesh-gradient and mesh-move code below this line */
+.mesh-gradient {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  background-color: var(--bg-color);
+  background-image: 
+    radial-gradient(at 0% 0%, var(--accent-1) 0, transparent 50%),
+    radial-gradient(at 100% 100%, var(--accent-2) 0, transparent 50%);
+  filter: blur(80px);
+  animation: mesh-move 20s ease infinite;
+}
+
+@keyframes mesh-move {
+  0%, 100% { transform: scale(1) translate(0, 0); }
+  33% { transform: scale(1.1) translate(20px, -30px); }
+  66% { transform: scale(0.9) translate(-20px, 20px); }
+}
