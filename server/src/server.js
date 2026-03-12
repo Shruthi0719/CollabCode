@@ -10,18 +10,18 @@ const morgan = require('morgan');
 const cors = require('cors');
 require('dotenv').config();
 
+// IMPORT ROUTES (Only once!)
+const authRoutes = require('./routes/authRoutes');
+
 const app = express();
 const server = http.createServer(app);
 
 // 1. DATABASE CONNECTION
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected Successfully"))
-  .catch(err => {
-    console.error("❌ MongoDB Connection Error:", err.message);
-    process.exit(1); 
-  });
+  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
-// 2. SOCKET.IO CONFIGURATION
+// 2. SOCKET.IO
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173",
@@ -30,64 +30,48 @@ const io = new Server(server, {
   }
 });
 
-// 3. ESSENTIAL MIDDLEWARE (Security & Parsing)
-app.use(helmet({ 
-  contentSecurityPolicy: false, 
-}));
+// 3. MIDDLEWARE
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 4. CORS CONFIGURATION (Must be BEFORE routes)
+// 4. CORS (Must be before routes)
 app.use(cors({
   origin: "http://localhost:5173", 
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  credentials: true
 }));
 
-// 5. SESSION CONFIGURATION
+// 5. SESSIONS
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback_secret_shhh',
+  secret: process.env.SESSION_SECRET || 'dev_secret',
   resave: false,
   saveUninitialized: false,
-  store: MongoStore.create({ 
-    mongoUrl: process.env.MONGO_URI,
-    ttl: 14 * 24 * 60 * 60 
-  }),
+  store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
   cookie: { 
-    secure: process.env.NODE_ENV === 'production', 
+    secure: false, // Set to true only in production with HTTPS
     httpOnly: true,
-    sameSite: 'lax',
     maxAge: 1000 * 60 * 60 * 24 
   }
 }));
 
-// 6. API ROUTES
-const authRoutes = require('./routes/authRoutes'); 
+// 6. USE ROUTES
 app.use('/api/auth', authRoutes);
 
-// 7. SOCKET.IO LOGIC
+// 7. SOCKET LOGIC
 require('./sockets/socketMain')(io);
 
-// 8. FRONTEND STATIC SERVING (For production)
+// 8. SERVE FRONTEND
 const buildPath = path.join(__dirname, '../../client/dist');
 app.use(express.static(buildPath));
 
-// 9. SPA ROUTING
 app.get('*', (req, res) => {
   if (!req.path.startsWith('/api')) {
     res.sendFile(path.join(buildPath, 'index.html'));
   }
 });
 
-// 10. GLOBAL ERROR HANDLER
-app.use((err, req, res, next) => {
-  console.error("Server Error:", err.stack);
-  res.status(500).json({ message: "Internal Server Error", error: err.message });
-});
-
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`🚀 CollabCode Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server live at http://localhost:${PORT}`);
 });

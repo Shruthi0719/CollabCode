@@ -1,9 +1,10 @@
 export const LANGUAGES = [
-  { label: 'JavaScript', value: 'javascript' },
-  { label: 'Python', value: 'python' },
-  { label: 'C++', value: 'cpp' },
-  { label: 'Java', value: 'java' },
-  { label: 'TypeScript', value: 'typescript' },
-  { label: 'HTML', value: 'html' },
-  { label: 'CSS', value: 'css' },
+    { name: 'JavaScript', value: 'javascript' },
+    { name: 'Python', value: 'python' },
+    { name: 'Java', value: 'java' },
+    { name: 'C++', value: 'cpp' },
+    { name: 'TypeScript', value: 'typescript' },
+    { name: 'HTML', value: 'html' },
+    { name: 'CSS', value: 'css' },
+    { name: 'Rust', value: 'rust' }
 ];

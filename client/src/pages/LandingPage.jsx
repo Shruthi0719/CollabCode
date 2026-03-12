@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+// ADD AnimatePresence HERE:
+import { motion, AnimatePresence } from 'framer-motion'; 
 import { Zap, Users, Link as LinkIcon, Rocket, Github } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -71,21 +72,22 @@ export default function LandingPage() {
 
           {/* Premium Glow Headline */}
           <motion.h1 
-            whileHover={{ 
-              textShadow: "0px 0px 20px rgba(168, 85, 247, 0.6)",
-            }}
-            className="text-6xl font-extrabold mb-6 font-['Space_Grotesk'] leading-tight text-white cursor-default transition-all duration-300"
-          >
-            Code Together. <br />
-            <motion.span 
-              whileHover={{ 
-                textShadow: "0px 0px 30px rgba(99, 102, 241, 0.8)",
-              }}
-              className="bg-brand-gradient bg-clip-text text-transparent"
-            >
-              Instantly.
-            </motion.span>
-          </motion.h1>
+  whileHover={{ 
+    filter: "drop-shadow(0 0 15px rgba(168, 85, 247, 0.8))",
+    scale: 1.01
+  }}
+  className="text-6xl font-extrabold mb-6 font-['Space_Grotesk'] leading-tight text-white cursor-default transition-all duration-300"
+>
+  Code Together. <br />
+  <motion.span 
+    whileHover={{ 
+      filter: "drop-shadow(0 0 20px rgba(99, 102, 241, 1))",
+    }}
+    className="bg-brand-gradient bg-clip-text text-transparent inline-block"
+  >
+    Instantly.
+  </motion.span>
+</motion.h1>
 
           <p className="text-gray-400 text-lg mb-10 leading-relaxed">
             CollabCode is a real-time collaborative coding platform where developers can join shared rooms, write code together, and debug faster.

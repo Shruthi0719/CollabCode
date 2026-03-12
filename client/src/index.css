@@ -25,13 +25,25 @@
   }
 }
 
-@layer components {
-  .glow-text {
-    @apply transition-all duration-300 cursor-default;
+@layer base {
+  .bg-brand-gradient {
+    background: linear-gradient(to right, #8b5cf6, #3b82f6);
   }
-  .glow-text:hover {
-    text-shadow: 0 0 20px rgba(168, 85, 247, 0.4), 0 0 40px rgba(99, 102, 241, 0.2);
-    transform: translateY(-2px);
+}
+
+/* Force hardware acceleration for smooth glows */
+h1, span {
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .glow-hover {
+    @apply transition-all duration-300;
+  }
+  .glow-hover:hover {
+    text-shadow: 0 0 15px rgba(168, 85, 247, 0.8), 0 0 30px rgba(99, 102, 241, 0.4);
+    filter: brightness(1.2);
   }
 }
 /* Keep your mesh-gradient and mesh-move code below this line */
