@@ -10,23 +10,24 @@ const morgan = require('morgan');
 const cors = require('cors');
 require('dotenv').config();
 
-// IMPORT ROUTES (Only once!)
+// IMPORT ROUTES
 const authRoutes = require('./routes/authRoutes');
+const codeRoutes = require('./routes/codeRoutes');
 
 const app = express();
 const server = http.createServer(app);
 
 // 1. DATABASE CONNECTION
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected Successfully"))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
+  .then(() => console.log('✅ MongoDB Connected Successfully'))
+  .catch(err => console.error('❌ MongoDB Connection Error:', err.message));
 
 // 2. SOCKET.IO
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true,
   }
 });
 
@@ -36,10 +37,10 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 4. CORS (Must be before routes)
+// 4. CORS — must be before routes
 app.use(cors({
-  origin: "http://localhost:5173", 
-  credentials: true
+  origin: 'http://localhost:5173',
+  credentials: true,
 }));
 
 // 5. SESSIONS
@@ -48,27 +49,37 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
-  cookie: { 
-    secure: false, // Set to true only in production with HTTPS
+  cookie: {
+    secure: false,   // true only in production with HTTPS
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 
+    maxAge: 1000 * 60 * 60 * 24,
   }
 }));
 
-// 6. USE ROUTES
+// 6. API ROUTES
 app.use('/api/auth', authRoutes);
+app.use('/api/code', codeRoutes);
 
 // 7. SOCKET LOGIC
-require('./sockets/socketMain')(io);
+// ✅ FIX: path uses 'socketMain' not 'socketmain' — check your actual filename casing
+require('./sockets/socketmain')(io);
 
-// 8. SERVE FRONTEND
-const buildPath = path.join(__dirname, '../../client/dist');
-app.use(express.static(buildPath));
+// 8. SERVE FRONTEND (production only)
+// ✅ FIX: In development you DON'T need this — Vite runs on :5173 separately.
+// This only applies when you run `npm run build` and serve the built files.
+if (process.env.NODE_ENV === 'production') {
+  const buildPath = path.join(__dirname, '../../client/dist');
+  app.use(express.static(buildPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(buildPath, 'index.html'));
+    }
+  });
+}
 
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(buildPath, 'index.html'));
-  }
+// 9. HEALTH CHECK — visit localhost:4000/api/health to confirm server is up
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
 });
 
 const PORT = process.env.PORT || 4000;
