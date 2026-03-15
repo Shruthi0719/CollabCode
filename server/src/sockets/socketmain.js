@@ -1,49 +1,136 @@
-const roomUsers = {};
+// server/src/sockets/socketMain.js
+const roomUsers   = {};
+const roomVersion = {};
+const roomHistory = {};
+
+// Simple OT transform — server side
+function transform(opA, opB) {
+  if (opA.type === 'insert' && opB.type === 'insert') {
+    if (opB.position < opA.position ||
+       (opB.position === opA.position && opB.author < opA.author)) {
+      return { ...opA, position: opA.position + opB.text.length };
+    }
+    return opA;
+  }
+  if (opA.type === 'insert' && opB.type === 'delete') {
+    if (opB.position < opA.position) {
+      return { ...opA, position: Math.max(opB.position, opA.position - opB.length) };
+    }
+    return opA;
+  }
+  if (opA.type === 'delete' && opB.type === 'insert') {
+    if (opB.position <= opA.position) {
+      return { ...opA, position: opA.position + opB.text.length };
+    }
+    return opA;
+  }
+  if (opA.type === 'delete' && opB.type === 'delete') {
+    if (opB.position < opA.position) {
+      const overlap = Math.min(opB.position + opB.length, opA.position) - opB.position;
+      return { ...opA, position: opA.position - overlap };
+    }
+    return opA;
+  }
+  return opA;
+}
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
     console.log('Connected:', socket.id);
 
-    // --- JOIN ROOM ---
+    // ─── JOIN ROOM ───────────────────────────────────────────────────────────
     socket.on('join-room', ({ roomId, username }) => {
       if (!roomId || !username) return;
 
       socket.join(roomId);
 
-      if (!roomUsers[roomId]) roomUsers[roomId] = [];
+      if (!roomUsers[roomId])   roomUsers[roomId]   = [];
+      if (!roomVersion[roomId]) roomVersion[roomId] = 0;
+      if (!roomHistory[roomId]) roomHistory[roomId] = [];
 
       const existing = roomUsers[roomId].find(u => u.socketId === socket.id);
       if (existing) {
         existing.username = username;
       } else {
-        roomUsers[roomId].push({ username, socketId: socket.id });
+        roomUsers[roomId].push({ username, socketId: socket.id, cursor: null });
       }
+
+      // Send current doc version to new user so their OT client syncs
+      socket.emit('init-version', { version: roomVersion[roomId] });
 
       io.in(roomId).emit('user-list', roomUsers[roomId]);
 
       socket.to(roomId).emit('receive-message', {
         username: 'System',
-        message: `${username} joined the workspace`,
-        time: new Date(),
+        message:  `${username} joined the workspace`,
+        time:     new Date(),
         isSystem: true,
       });
 
       console.log(`${username} joined room: ${roomId}`);
     });
 
-    // --- CODE CHANGE ---
+    // ─── OT OPERATION ────────────────────────────────────────────────────────
+    socket.on('operation', ({ roomId, op, baseVersion }) => {
+      if (!roomId || !op) return;
+
+      if (!roomVersion[roomId]) roomVersion[roomId] = 0;
+      if (!roomHistory[roomId]) roomHistory[roomId] = [];
+
+      // Transform against all ops after baseVersion
+      let transformedOp = op;
+      const concurrentOps = roomHistory[roomId].slice(baseVersion);
+      for (const histOp of concurrentOps) {
+        transformedOp = transform(transformedOp, histOp);
+      }
+
+      roomVersion[roomId]++;
+      transformedOp.version = roomVersion[roomId];
+      roomHistory[roomId].push(transformedOp);
+
+      // Keep history bounded
+      if (roomHistory[roomId].length > 500) {
+        roomHistory[roomId] = roomHistory[roomId].slice(-500);
+      }
+
+      // ACK sender with new version
+      socket.emit('operation-ack', { version: roomVersion[roomId] });
+
+      // Broadcast transformed op to everyone else
+      socket.to(roomId).emit('operation', {
+        op:      transformedOp,
+        version: roomVersion[roomId],
+      });
+    });
+
+    // ─── FALLBACK CODE CHANGE ────────────────────────────────────────────────
     socket.on('code-change', ({ roomId, code }) => {
       if (!roomId) return;
       socket.to(roomId).emit('code-update', code);
     });
 
-    // --- LANGUAGE CHANGE ---
+    // ─── LANGUAGE CHANGE ─────────────────────────────────────────────────────
     socket.on('language-change', ({ roomId, language }) => {
       if (!roomId || !language) return;
+      roomVersion[roomId] = 0;
+      roomHistory[roomId] = [];
       socket.to(roomId).emit('language-change', language);
     });
 
-    // --- CHAT MESSAGE ---
+    // ─── CURSOR PRESENCE ─────────────────────────────────────────────────────
+    socket.on('cursor-move', ({ roomId, cursor }) => {
+      if (!roomId || !cursor) return;
+      if (roomUsers[roomId]) {
+        const user = roomUsers[roomId].find(u => u.socketId === socket.id);
+        if (user) user.cursor = cursor;
+      }
+      socket.to(roomId).emit('cursor-update', {
+        socketId: socket.id,
+        cursor,
+      });
+    });
+
+    // ─── CHAT MESSAGE ─────────────────────────────────────────────────────────
     socket.on('send-message', ({ roomId, username, message }) => {
       if (!roomId || !message?.trim()) return;
       socket.to(roomId).emit('receive-message', {
@@ -54,42 +141,40 @@ module.exports = (io) => {
       });
     });
 
-    // ✅ NEW: Broadcast output to all users in the room so everyone
-    // sees the terminal result when any user runs code
+    // ─── OUTPUT SYNC ──────────────────────────────────────────────────────────
     socket.on('output-update', ({ roomId, output, isExecuting }) => {
       if (!roomId) return;
       socket.to(roomId).emit('output-update', { output, isExecuting });
     });
 
-    // --- DISCONNECT ---
+    // ─── DISCONNECT ───────────────────────────────────────────────────────────
     socket.on('disconnecting', () => {
-      const rooms = Array.from(socket.rooms);
-
-      rooms.forEach((roomId) => {
+      Array.from(socket.rooms).forEach((roomId) => {
         if (!roomUsers[roomId]) return;
 
         const user = roomUsers[roomId].find(u => u.socketId === socket.id);
         if (user) {
           socket.to(roomId).emit('receive-message', {
             username: 'System',
-            message: `${user.username} left the workspace`,
-            time: new Date(),
+            message:  `${user.username} left the workspace`,
+            time:     new Date(),
             isSystem: true,
           });
+          socket.to(roomId).emit('cursor-remove', { socketId: socket.id });
         }
 
         roomUsers[roomId] = roomUsers[roomId].filter(u => u.socketId !== socket.id);
 
         if (roomUsers[roomId].length === 0) {
           delete roomUsers[roomId];
+          delete roomVersion[roomId];
+          delete roomHistory[roomId];
         } else {
           io.in(roomId).emit('user-list', roomUsers[roomId]);
         }
       });
     });
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected:', socket.id);
-    });
+    socket.on('disconnect', () => console.log('Disconnected:', socket.id));
   });
 };
