@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, Rocket } from 'lucide-react';
@@ -10,34 +10,30 @@ import ChatBox from '../components/ChatBox';
 import Terminal from '../components/Terminal';
 import { LANGUAGES } from '../constants/languages';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 const CODE_TEMPLATES = {
   javascript: `console.log("Hello from JavaScript!");`,
-
-  python3: `print("Hello from Python!")`,
-
+  python3:    `print("Hello from Python!")`,
   java: `class Main {
     public static void main(String[] args) {
         System.out.println("Hello from Java!");
     }
 }`,
-
   cpp: `#include <iostream>
 
 int main() {
     std::cout << "Hello from C++!" << std::endl;
     return 0;
 }`,
-
   typescript: `const greet = (name: string): string => {
     return \`Hello from TypeScript, \${name}!\`;
 };
 
 console.log(greet("CollabCode"));`,
-
   rust: `fn main() {
     println!("Hello from Rust!");
 }`,
-
   html: `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -55,7 +51,6 @@ console.log(greet("CollabCode"));`,
 </html>`,
 };
 
-// Monaco editor language mapping
 const MONACO_LANG = {
   javascript: 'javascript',
   python3:    'python',
@@ -68,44 +63,93 @@ const MONACO_LANG = {
 
 export default function EditorPage() {
   const { roomId } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
+  const navigate   = useNavigate();
+  const { user }   = useAuth();
 
-  const [language, setLanguage] = useState('javascript');
-  const [code, setCode] = useState(CODE_TEMPLATES.javascript);
-  const [output, setOutput] = useState('');
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [language,       setLanguage]       = useState('javascript');
+  const [code,           setCode]           = useState(CODE_TEMPLATES.javascript);
+  const [output,         setOutput]         = useState('');
+  const [isExecuting,    setIsExecuting]    = useState(false);
+  const [copied,         setCopied]         = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
-  const [onlineUsers, setOnlineUsers] = useState([]);
-  const [htmlPreview, setHtmlPreview] = useState('');
+  const [onlineUsers,    setOnlineUsers]    = useState([]);
+  const [htmlPreview,    setHtmlPreview]    = useState('');
 
-  const codeRef = useRef(code);
-  useEffect(() => { codeRef.current = code; }, [code]);
+  const codeRef     = useRef(code);
+  const languageRef = useRef(language);
+  const hasJoined   = useRef(false);
+
+  codeRef.current     = code;
+  languageRef.current = language;
+
+  const username = user?.username;
+
+  // ✅ Helper — updates output locally AND broadcasts to all room users
+  const broadcastOutput = useCallback((newOutput, executing = false) => {
+    setOutput(newOutput);
+    setIsExecuting(executing);
+    if (executing) setIsTerminalOpen(true);
+    socket.emit('output-update', {
+      roomId,
+      output:      newOutput,
+      isExecuting: executing,
+    });
+  }, [roomId]);
 
   useEffect(() => {
-    if (!roomId || !user) return;
-    socket.emit('join-room', { roomId, username: user.username });
+    if (!roomId || !username) return;
 
-    const handleCodeUpdate   = (newCode) => { if (newCode !== codeRef.current) setCode(newCode); };
-    const handleLangChange   = (newLang) => setLanguage(newLang);
-    const handleUserList     = (list)    => setOnlineUsers(list);
+    if (!hasJoined.current) {
+      socket.emit('join-room', { roomId, username });
+      hasJoined.current = true;
+    }
+
+    const handleCodeUpdate = (newCode) => {
+      if (newCode !== codeRef.current) setCode(newCode);
+    };
+
+    const handleLanguageChange = (newLang) => {
+      if (newLang !== languageRef.current) {
+        setLanguage(newLang);
+        if (codeRef.current === CODE_TEMPLATES[languageRef.current]) {
+          setCode(CODE_TEMPLATES[newLang] || '');
+        }
+      }
+    };
+
+    const handleUserList = (list) => setOnlineUsers(list);
+
+    // ✅ Receive output broadcast from another user who ran code
+    const handleOutputUpdate = ({ output: remoteOutput, isExecuting: remoteExecuting }) => {
+      setOutput(remoteOutput);
+      setIsExecuting(remoteExecuting);
+      if (remoteOutput && remoteOutput !== 'Running...') {
+        setIsTerminalOpen(true);
+      }
+    };
+
+    socket.off('code-update',     handleCodeUpdate);
+    socket.off('language-change', handleLanguageChange);
+    socket.off('user-list',       handleUserList);
+    socket.off('output-update',   handleOutputUpdate);
 
     socket.on('code-update',     handleCodeUpdate);
-    socket.on('language-change', handleLangChange);
+    socket.on('language-change', handleLanguageChange);
     socket.on('user-list',       handleUserList);
+    socket.on('output-update',   handleOutputUpdate);
 
     return () => {
       socket.off('code-update',     handleCodeUpdate);
-      socket.off('language-change', handleLangChange);
+      socket.off('language-change', handleLanguageChange);
       socket.off('user-list',       handleUserList);
+      socket.off('output-update',   handleOutputUpdate);
     };
-  }, [roomId, user]);
+  }, [roomId, username]);
 
-  const handleCodeChange = (value) => {
+  const handleCodeChange = useCallback((value) => {
     setCode(value);
     socket.emit('code-change', { roomId, code: value });
-  };
+  }, [roomId]);
 
   const handleLanguageChange = (e) => {
     const newLang = e.target.value;
@@ -115,50 +159,51 @@ export default function EditorPage() {
     setOutput('');
     setHtmlPreview('');
     socket.emit('language-change', { roomId, language: newLang });
-    socket.emit('code-change', { roomId, code: newTemplate });
+    socket.emit('code-change',     { roomId, code: newTemplate });
   };
 
   const runCode = async () => {
     if (isExecuting) return;
 
-    // HTML — render in iframe, no backend needed
     if (language === 'html') {
       setHtmlPreview(code);
       setIsTerminalOpen(false);
       return;
     }
 
-    setIsExecuting(true);
-    setIsTerminalOpen(true);
-    setHtmlPreview('');
-    setOutput('Running...');
+    // ✅ Broadcast "Running..." state to all users immediately
+    broadcastOutput('Running...', true);
 
     try {
       const response = await axios.post(
-        'http://localhost:4000/api/code/execute',
+        `${BACKEND}/api/code/execute`,
         { language, files: [{ content: code }] },
         { timeout: 30000 }
       );
 
       const { run } = response.data;
+      let result;
       if (run.stderr && !run.output) {
-        setOutput(`[stderr]\n${run.stderr}`);
+        result = `[stderr]\n${run.stderr}`;
       } else if (run.output) {
-        setOutput(run.output);
+        result = run.output;
       } else {
-        setOutput('(No output)');
+        result = '(No output)';
       }
+
+      // ✅ Broadcast final result to all users
+      broadcastOutput(result, false);
+
     } catch (err) {
+      let msg;
       if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') {
-        setOutput('Error: Cannot reach server at localhost:4000.\nMake sure your backend is running.');
+        msg = 'Error: Cannot reach server.\nMake sure your backend is running.';
       } else if (err.code === 'ECONNABORTED') {
-        setOutput('Error: Execution timed out.\nYour code may contain an infinite loop.');
+        msg = 'Error: Execution timed out.\nYour code may contain an infinite loop.';
       } else {
-        const msg = err?.response?.data?.run?.stderr || err?.response?.data?.error || err.message;
-        setOutput(`Error: ${msg}`);
+        msg = `Error: ${err?.response?.data?.run?.stderr || err?.response?.data?.error || err.message}`;
       }
-    } finally {
-      setIsExecuting(false);
+      broadcastOutput(msg, false);
     }
   };
 
@@ -188,12 +233,12 @@ export default function EditorPage() {
             {onlineUsers.map((u, index) => (
               <div key={u.socketId || index} className="group relative z-10 hover:z-20">
                 <div className={`w-9 h-9 rounded-full border-2 border-[#0a0f1e] flex items-center justify-center text-[10px] font-bold text-white shadow-lg transition-transform hover:scale-110 cursor-pointer ${
-                  u.username === user?.username ? 'bg-blue-600' : 'bg-indigo-500'
+                  u.username === username ? 'bg-blue-600' : 'bg-indigo-500'
                 }`}>
                   {u.username?.substring(0, 2).toUpperCase()}
                 </div>
                 <div className="absolute top-12 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-[10px] py-1 px-2 rounded shadow-2xl border border-white/10 z-[100] whitespace-nowrap pointer-events-none">
-                  {u.username} {u.username === user?.username ? '(You)' : ''}
+                  {u.username} {u.username === username ? '(You)' : ''}
                 </div>
               </div>
             ))}
@@ -265,14 +310,24 @@ export default function EditorPage() {
               language={MONACO_LANG[language] || language}
               value={code}
               onChange={handleCodeChange}
-              options={{ fontSize: 16, minimap: { enabled: false }, automaticLayout: true, scrollBeyondLastLine: false }}
+              options={{
+                fontSize: 16,
+                minimap: { enabled: false },
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+              }}
             />
           </div>
 
           {/* HTML PREVIEW */}
           <AnimatePresence>
             {htmlPreview && language === 'html' && (
-              <motion.div initial={{ height: 0 }} animate={{ height: 300 }} exit={{ height: 0 }} className="border-t border-white/10 bg-white overflow-hidden shrink-0">
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: 300 }}
+                exit={{ height: 0 }}
+                className="border-t border-white/10 bg-white overflow-hidden shrink-0"
+              >
                 <iframe
                   srcDoc={htmlPreview}
                   title="HTML Preview"
@@ -286,7 +341,12 @@ export default function EditorPage() {
           {/* TERMINAL */}
           <AnimatePresence>
             {isTerminalOpen && language !== 'html' && (
-              <motion.div initial={{ height: 0 }} animate={{ height: 260 }} exit={{ height: 0 }} className="border-t border-white/10 bg-[#020617] overflow-hidden shrink-0">
+              <motion.div
+                initial={{ height: 0 }}
+                animate={{ height: 260 }}
+                exit={{ height: 0 }}
+                className="border-t border-white/10 bg-[#020617] overflow-hidden shrink-0"
+              >
                 <Terminal output={output} clearOutput={() => setOutput('')} isExecuting={isExecuting} />
               </motion.div>
             )}

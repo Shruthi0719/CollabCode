@@ -6,15 +6,12 @@ module.exports = (io) => {
 
     // --- JOIN ROOM ---
     socket.on('join-room', ({ roomId, username }) => {
-      // ✅ Guard: ignore malformed events
       if (!roomId || !username) return;
 
       socket.join(roomId);
 
       if (!roomUsers[roomId]) roomUsers[roomId] = [];
 
-      // ✅ If the same socket rejoins (e.g. React StrictMode double-mount),
-      // update their username rather than pushing a duplicate entry
       const existing = roomUsers[roomId].find(u => u.socketId === socket.id);
       if (existing) {
         existing.username = username;
@@ -24,8 +21,6 @@ module.exports = (io) => {
 
       io.in(roomId).emit('user-list', roomUsers[roomId]);
 
-      // ✅ Only broadcast the join message to OTHERS — the joining user
-      // doesn't need to see "You joined the workspace" in their own chat
       socket.to(roomId).emit('receive-message', {
         username: 'System',
         message: `${username} joined the workspace`,
@@ -59,6 +54,13 @@ module.exports = (io) => {
       });
     });
 
+    // ✅ NEW: Broadcast output to all users in the room so everyone
+    // sees the terminal result when any user runs code
+    socket.on('output-update', ({ roomId, output, isExecuting }) => {
+      if (!roomId) return;
+      socket.to(roomId).emit('output-update', { output, isExecuting });
+    });
+
     // --- DISCONNECT ---
     socket.on('disconnecting', () => {
       const rooms = Array.from(socket.rooms);
@@ -67,7 +69,6 @@ module.exports = (io) => {
         if (!roomUsers[roomId]) return;
 
         const user = roomUsers[roomId].find(u => u.socketId === socket.id);
-
         if (user) {
           socket.to(roomId).emit('receive-message', {
             username: 'System',
@@ -79,7 +80,6 @@ module.exports = (io) => {
 
         roomUsers[roomId] = roomUsers[roomId].filter(u => u.socketId !== socket.id);
 
-        // ✅ Clean up empty rooms so the object doesn't grow forever
         if (roomUsers[roomId].length === 0) {
           delete roomUsers[roomId];
         } else {
