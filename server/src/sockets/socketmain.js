@@ -75,20 +75,26 @@ module.exports = (io) => {
       });
 
       // ── SAVE TO MONGODB ──────────────────────────────────────────────────
-      // Upsert the room so it's always in the DB, add user to members list
       const userId = getUserId(socket);
+      console.log('join-room userId:', userId); // debug — remove after confirming
+
+      if (!userId) {
+        console.warn('⚠️  No userId in session — room will not be saved to MongoDB');
+        return;
+      }
+
       try {
         await Room.findOneAndUpdate(
           { _id: roomId },
           {
             $setOnInsert: { _id: roomId, name: `Room_${roomId}`, createdBy: userId },
-            $addToSet:    { members: userId },   // add user only once
+            $addToSet:    { members: userId },
             $set:         { lastActive: new Date() },
           },
           { upsert: true, new: true }
         );
+        console.log(`✅ Room ${roomId} saved to MongoDB`);
       } catch (err) {
-        // Don't crash the socket if DB write fails — just log it
         console.error('Room upsert error:', err.message);
       }
 

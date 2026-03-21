@@ -194,8 +194,8 @@ export default function Dashboard() {
     const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
     Promise.all([
-      fetch(`${BACKEND}/api/rooms/user`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`${BACKEND}/api/stats`,      { credentials: 'include' }).then(r => r.json()),
+      fetch(`${BACKEND}/api/rooms/user`,  { credentials: 'include' }).then(r => r.json()),
+      fetch(`${BACKEND}/api/rooms/stats`, { credentials: 'include' }).then(r => r.json()),
     ])
       .then(([rooms, statsData]) => {
         setRecent(rooms ?? []);
