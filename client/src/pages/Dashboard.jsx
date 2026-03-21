@@ -192,9 +192,11 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const token   = localStorage.getItem('cc_token');
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
     const safeFetch = (url) =>
-      fetch(url, { credentials: 'include' })
+      fetch(url, { credentials: 'include', headers })
         .then(r => r.ok ? r.json() : null)
         .catch(() => null);
 

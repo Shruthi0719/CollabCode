@@ -16,6 +16,7 @@
     "express-session": "^1.19.0",
     "framer-motion": "^12.35.2",
     "helmet": "^7.2.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.23.0",
     "morgan": "^1.10.1",
     "socket.io": "^4.8.3"

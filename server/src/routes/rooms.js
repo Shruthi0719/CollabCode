@@ -1,16 +1,32 @@
 const express = require('express');
 const router  = express.Router();
 const Room    = require('../models/Room');
+const jwt     = require('jsonwebtoken');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'collabcode-secret';
+
+// Works with BOTH session AND JWT token (sent as Authorization header)
 function requireAuth(req, res, next) {
-  if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-  next();
+  // 1. Try session first
+  if (req.session?.userId) {
+    req.userId = req.session.userId;
+    return next();
+  }
+  // 2. Fall back to JWT Bearer token
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(auth.slice(7), JWT_SECRET);
+      req.userId = decoded.userId;
+      return next();
+    } catch {}
+  }
+  return res.status(401).json({ message: 'Not authenticated' });
 }
 
-// GET /api/rooms/user
 router.get('/user', requireAuth, async (req, res) => {
   try {
-    const rooms = await Room.find({ members: req.session.userId })
+    const rooms = await Room.find({ members: req.userId })
       .sort({ lastActive: -1 })
       .limit(50)
       .select('_id name language lastActive createdAt');
@@ -21,14 +37,13 @@ router.get('/user', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/rooms/stats
 router.get('/stats', requireAuth, async (req, res) => {
   try {
-    const rooms = await Room.find({ members: req.session.userId }).select('members');
+    const rooms = await Room.find({ members: req.userId }).select('members');
     const collaboratorSet = new Set();
     rooms.forEach(room => {
       room.members.forEach(id => {
-        if (id.toString() !== req.session.userId) collaboratorSet.add(id.toString());
+        if (id.toString() !== req.userId.toString()) collaboratorSet.add(id.toString());
       });
     });
     res.json({ activeRooms: rooms.length, collaborators: collaboratorSet.size, status: 'Online' });
