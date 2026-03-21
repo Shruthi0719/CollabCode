@@ -1,12 +1,11 @@
-// server/src/sockets/socketMain.js  ← REPLACE your entire socketMain.js with this
-
 const Room = require('../models/Room');
+const jwt  = require('jsonwebtoken');
 
+const JWT_SECRET  = process.env.JWT_SECRET || 'collabcode-secret';
 const roomUsers   = {};
 const roomVersion = {};
 const roomHistory = {};
 
-// ─── OT Transform (unchanged) ────────────────────────────────────────────────
 function transform(opA, opB) {
   if (opA.type === 'insert' && opB.type === 'insert') {
     if (opB.position < opA.position ||
@@ -16,15 +15,13 @@ function transform(opA, opB) {
     return opA;
   }
   if (opA.type === 'insert' && opB.type === 'delete') {
-    if (opB.position < opA.position) {
+    if (opB.position < opA.position)
       return { ...opA, position: Math.max(opB.position, opA.position - opB.length) };
-    }
     return opA;
   }
   if (opA.type === 'delete' && opB.type === 'insert') {
-    if (opB.position <= opA.position) {
+    if (opB.position <= opA.position)
       return { ...opA, position: opA.position + opB.text.length };
-    }
     return opA;
   }
   if (opA.type === 'delete' && opB.type === 'delete') {
@@ -37,17 +34,36 @@ function transform(opA, opB) {
   return opA;
 }
 
-// ─── Helper: get userId from socket session ───────────────────────────────────
-// express-session attaches to socket.request.session
+// ── Get userId from session OR JWT token ──────────────────────────────────────
 function getUserId(socket) {
-  return socket.request?.session?.userId ?? null;
+  // 1. Try session (works locally)
+  if (socket.request?.session?.userId) return socket.request.session.userId;
+
+  // 2. Try JWT from socket handshake auth (works in production)
+  const token = socket.handshake?.auth?.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      return decoded.userId;
+    } catch {}
+  }
+
+  // 3. Try JWT from handshake headers
+  const authHeader = socket.handshake?.headers?.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET);
+      return decoded.userId;
+    } catch {}
+  }
+
+  return null;
 }
 
 module.exports = (io) => {
   io.on('connection', (socket) => {
     console.log('Connected:', socket.id);
 
-    // ─── JOIN ROOM ─────────────────────────────────────────────────────────
     socket.on('join-room', async ({ roomId, username }) => {
       if (!roomId || !username) return;
 
@@ -58,15 +74,11 @@ module.exports = (io) => {
       if (!roomHistory[roomId]) roomHistory[roomId] = [];
 
       const existing = roomUsers[roomId].find(u => u.socketId === socket.id);
-      if (existing) {
-        existing.username = username;
-      } else {
-        roomUsers[roomId].push({ username, socketId: socket.id, cursor: null });
-      }
+      if (existing) existing.username = username;
+      else roomUsers[roomId].push({ username, socketId: socket.id, cursor: null });
 
       socket.emit('init-version', { version: roomVersion[roomId] });
       io.in(roomId).emit('user-list', roomUsers[roomId]);
-
       socket.to(roomId).emit('receive-message', {
         username: 'System',
         message:  `${username} joined the workspace`,
@@ -74,129 +86,94 @@ module.exports = (io) => {
         isSystem: true,
       });
 
-      // ── SAVE TO MONGODB ──────────────────────────────────────────────────
       const userId = getUserId(socket);
-      console.log('join-room userId:', userId); // debug — remove after confirming
+      console.log('join-room userId:', userId);
 
       if (!userId) {
-        console.warn('⚠️  No userId in session — room will not be saved to MongoDB');
-        return;
-      }
-
-      try {
-        await Room.findOneAndUpdate(
-          { _id: roomId },
-          {
-            $setOnInsert: { _id: roomId, name: `Room_${roomId}`, createdBy: userId },
-            $addToSet:    { members: userId },
-            $set:         { lastActive: new Date() },
-          },
-          { upsert: true, new: true }
-        );
-        console.log(`✅ Room ${roomId} saved to MongoDB`);
-      } catch (err) {
-        console.error('Room upsert error:', err.message);
+        console.warn('⚠️  No userId — room not saved to MongoDB');
+      } else {
+        try {
+          await Room.findOneAndUpdate(
+            { _id: roomId },
+            {
+              $setOnInsert: { _id: roomId, name: `Room_${roomId}`, createdBy: userId },
+              $addToSet:    { members: userId },
+              $set:         { lastActive: new Date() },
+            },
+            { upsert: true, new: true }
+          );
+          console.log(`✅ Room ${roomId} saved`);
+        } catch (err) {
+          console.error('Room upsert error:', err.message);
+        }
       }
 
       console.log(`${username} joined room: ${roomId}`);
     });
 
-    // ─── OT OPERATION ──────────────────────────────────────────────────────
     socket.on('operation', ({ roomId, op, baseVersion }) => {
       if (!roomId || !op) return;
-
       if (!roomVersion[roomId]) roomVersion[roomId] = 0;
       if (!roomHistory[roomId]) roomHistory[roomId] = [];
 
-      let transformedOp       = op;
-      const concurrentOps     = roomHistory[roomId].slice(baseVersion);
-      for (const histOp of concurrentOps) {
+      let transformedOp = op;
+      for (const histOp of roomHistory[roomId].slice(baseVersion))
         transformedOp = transform(transformedOp, histOp);
-      }
 
       roomVersion[roomId]++;
       transformedOp.version = roomVersion[roomId];
       roomHistory[roomId].push(transformedOp);
-
-      if (roomHistory[roomId].length > 500) {
+      if (roomHistory[roomId].length > 500)
         roomHistory[roomId] = roomHistory[roomId].slice(-500);
-      }
 
       socket.emit('operation-ack', { version: roomVersion[roomId] });
       socket.to(roomId).emit('operation', { op: transformedOp, version: roomVersion[roomId] });
-
-      // ── UPDATE lastActive in background (don't await — non-blocking) ───
-      Room.findByIdAndUpdate(roomId, { lastActive: new Date() }).exec()
-        .catch(err => console.error('lastActive update failed:', err.message));
+      Room.findByIdAndUpdate(roomId, { lastActive: new Date() }).exec().catch(() => {});
     });
 
-    // ─── LANGUAGE CHANGE ───────────────────────────────────────────────────
     socket.on('language-change', ({ roomId, language }) => {
       if (!roomId || !language) return;
       roomVersion[roomId] = 0;
       roomHistory[roomId] = [];
       socket.to(roomId).emit('language-change', language);
-
-      // ── SAVE language to MongoDB ────────────────────────────────────────
-      Room.findByIdAndUpdate(roomId, { language, lastActive: new Date() }).exec()
-        .catch(err => console.error('Language update failed:', err.message));
+      Room.findByIdAndUpdate(roomId, { language, lastActive: new Date() }).exec().catch(() => {});
     });
 
-    // ─── FALLBACK CODE CHANGE ──────────────────────────────────────────────
     socket.on('code-change', ({ roomId, code }) => {
       if (!roomId) return;
       socket.to(roomId).emit('code-update', code);
-
-      // ── SAVE latest code snapshot to MongoDB ────────────────────────────
-      Room.findByIdAndUpdate(roomId, { code, lastActive: new Date() }).exec()
-        .catch(err => console.error('Code save failed:', err.message));
+      Room.findByIdAndUpdate(roomId, { code, lastActive: new Date() }).exec().catch(() => {});
     });
 
-    // ─── CURSOR PRESENCE ───────────────────────────────────────────────────
     socket.on('cursor-move', ({ roomId, cursor }) => {
       if (!roomId || !cursor) return;
-      if (roomUsers[roomId]) {
-        const user = roomUsers[roomId].find(u => u.socketId === socket.id);
-        if (user) user.cursor = cursor;
-      }
+      const user = roomUsers[roomId]?.find(u => u.socketId === socket.id);
+      if (user) user.cursor = cursor;
       socket.to(roomId).emit('cursor-update', { socketId: socket.id, cursor });
     });
 
-    // ─── CHAT MESSAGE ───────────────────────────────────────────────────────
     socket.on('send-message', ({ roomId, username, message }) => {
       if (!roomId || !message?.trim()) return;
-      socket.to(roomId).emit('receive-message', {
-        username,
-        message,
-        time:  new Date(),
-        isMe:  false,
-      });
+      socket.to(roomId).emit('receive-message', { username, message, time: new Date(), isMe: false });
     });
 
-    // ─── OUTPUT SYNC ────────────────────────────────────────────────────────
     socket.on('output-update', ({ roomId, output, isExecuting }) => {
       if (!roomId) return;
       socket.to(roomId).emit('output-update', { output, isExecuting });
     });
 
-    // ─── DISCONNECT ─────────────────────────────────────────────────────────
     socket.on('disconnecting', () => {
       Array.from(socket.rooms).forEach((roomId) => {
         if (!roomUsers[roomId]) return;
-
         const user = roomUsers[roomId].find(u => u.socketId === socket.id);
         if (user) {
           socket.to(roomId).emit('receive-message', {
-            username: 'System',
-            message:  `${user.username} left the workspace`,
-            time:     new Date(),
-            isSystem: true,
+            username: 'System', message: `${user.username} left the workspace`,
+            time: new Date(), isSystem: true,
           });
           socket.to(roomId).emit('cursor-remove', { socketId: socket.id });
         }
-
         roomUsers[roomId] = roomUsers[roomId].filter(u => u.socketId !== socket.id);
-
         if (roomUsers[roomId].length === 0) {
           delete roomUsers[roomId];
           delete roomVersion[roomId];
