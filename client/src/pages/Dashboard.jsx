@@ -193,20 +193,25 @@ export default function Dashboard() {
     if (!user) return;
     const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
+    const safeFetch = (url) =>
+      fetch(url, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+
     Promise.all([
-      fetch(`${BACKEND}/api/rooms/user`,  { credentials: 'include' }).then(r => r.json()),
-      fetch(`${BACKEND}/api/rooms/stats`, { credentials: 'include' }).then(r => r.json()),
+      safeFetch(`${BACKEND}/api/rooms/user`),
+      safeFetch(`${BACKEND}/api/rooms/stats`),
     ])
       .then(([rooms, statsData]) => {
-        setRecent(rooms ?? []);
+        const roomList = Array.isArray(rooms) ? rooms : [];
+        setRecent(roomList);
         setStats({
-          activeRooms:    statsData?.activeRooms    ?? rooms?.length ?? 0,
-          collaborators:  statsData?.collaborators  ?? 0,
-          status:         statsData?.status         ?? 'Online',
+          activeRooms:   statsData?.activeRooms   ?? roomList.length,
+          collaborators: statsData?.collaborators ?? 0,
+          status:        statsData?.status        ?? 'Online',
         });
       })
       .catch(() => {
-        /* fallback: show empty state instead of fake data */
         setRecent([]);
         setStats({ activeRooms: 0, collaborators: 0, status: 'Online' });
       })

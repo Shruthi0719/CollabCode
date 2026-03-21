@@ -1,12 +1,11 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-axios.defaults.withCredentials = true;
-
-// ✅ FIX: Use full backend URL — relative URLs only work when
-// frontend and backend are on the same port (production).
-// In dev, frontend is :5173 and backend is :4000 — relative /api calls fail silently.
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
+// Set defaults globally — every axios call gets these
+axios.defaults.withCredentials = true;
+axios.defaults.baseURL = BACKEND;
 
 const AuthContext = createContext();
 
@@ -16,9 +15,9 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const res = await axios.get(`${BACKEND}/api/auth/me`);
+      const res = await axios.get('/api/auth/me');
       setUser(res.data);
-    } catch (err) {
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -27,18 +26,13 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post(`${BACKEND}/api/auth/logout`);
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-    // ✅ Always clear user and redirect even if the request fails
+      await axios.post('/api/auth/logout');
+    } catch {}
     setUser(null);
     window.location.href = '/';
   };
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  useEffect(() => { checkAuth(); }, []);
 
   return (
     <AuthContext.Provider value={{ user, setUser, loading, logout, checkAuth }}>
