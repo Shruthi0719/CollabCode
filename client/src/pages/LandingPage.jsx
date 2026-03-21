@@ -12,6 +12,8 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 const C = {
   bg:     '#080a0f',
   border: 'rgba(255,255,255,0.07)',
@@ -111,7 +113,7 @@ export default function LandingPage() {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const ep = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      const ep = isLogin ? `${BACKEND}/api/auth/login` : `${BACKEND}/api/auth/signup`;
       const { data } = await axios.post(ep, formData, { withCredentials: true });
       setUser(data);
       navigate('/dashboard');
@@ -168,6 +170,7 @@ export default function LandingPage() {
           position: 'absolute', inset: 0,
           display: 'flex', flexDirection: 'column', justifyContent: 'center',
           padding: '0 52px',
+          maxWidth: '55%',
           zIndex: 10,
         }}
       >
@@ -224,7 +227,7 @@ export default function LandingPage() {
 
         {/* Stats */}
         <motion.div variants={up} style={{ display: 'flex', gap: 32 }}>
-          {[['7+', 'Languages'], ['∞', 'Collaborators'], ['0ms', 'Sync Lag']].map(([num, lbl]) => (
+          {[['7+', 'Languages'], ['10+', 'Collaborators'], ['Low', 'Sync Lag']].map(([num, lbl]) => (
             <div key={lbl}>
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: C.text, lineHeight: 1 }}>{num}</div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 3 }}>{lbl}</div>
@@ -238,16 +241,16 @@ export default function LandingPage() {
       ══════════════════════════════════ */}
       <div style={{
         position: 'absolute',
-        top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 420,
+        top: '50%', right: '5%',
+        transform: 'translateY(-50%)',
+        width: 400,
         maxHeight: '90vh', overflowY: 'auto',
-        padding: '36px 40px',
+        padding: '32px 36px',
         borderRadius: 20,
         border: `1px solid ${C.border}`,
-        background: 'rgba(11,14,20,0.82)', backdropFilter: 'blur(28px)',
+        background: 'rgba(11,14,20,0.88)', backdropFilter: 'blur(32px)',
         zIndex: 20, boxSizing: 'border-box',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
       }}>
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
