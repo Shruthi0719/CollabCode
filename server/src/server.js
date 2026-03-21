@@ -1,20 +1,21 @@
-const express = require('express');
-const http = require('http');
+const express    = require('express');
+const http       = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
-const mongoose = require('mongoose');
-const session = require('express-session');
+const path       = require('path');
+const mongoose   = require('mongoose');
+const session    = require('express-session');
 const MongoStore = require('connect-mongo');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const cors = require('cors');
+const helmet     = require('helmet');
+const morgan     = require('morgan');
+const cors       = require('cors');
 require('dotenv').config();
 
 // IMPORT ROUTES
 const authRoutes = require('./routes/authRoutes');
 const codeRoutes = require('./routes/codeRoutes');
+const roomRoutes = require('./routes/rooms');      // ← moved here with the others
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
 
 // 1. DATABASE CONNECTION
@@ -25,8 +26,8 @@ mongoose.connect(process.env.MONGO_URI)
 // 2. SOCKET.IO
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
-    methods: ['GET', 'POST'],
+    origin:      'http://localhost:5173',
+    methods:     ['GET', 'POST'],
     credentials: true,
   }
 });
@@ -39,34 +40,38 @@ app.use(express.urlencoded({ extended: true }));
 
 // 4. CORS — must be before routes
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin:      'http://localhost:5173',
   credentials: true,
 }));
 
 // 5. SESSIONS
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev_secret',
-  resave: false,
+const sessionMiddleware = session({
+  secret:            process.env.SESSION_SECRET || 'dev_secret',
+  resave:            false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: process.env.MONGO_URI }),
   cookie: {
-    secure: false,   // true only in production with HTTPS
+    secure:   false,
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24,
+    maxAge:   1000 * 60 * 60 * 24,
   }
-}));
+});
+app.use(sessionMiddleware);
+
+// Share session with Socket.io so getUserId(socket) works
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, socket.request.res || {}, next);
+});
 
 // 6. API ROUTES
-app.use('/api/auth', authRoutes);
-app.use('/api/code', codeRoutes);
+app.use('/api/auth',  authRoutes);
+app.use('/api/code',  codeRoutes);
+app.use('/api/rooms', roomRoutes);   // ← added here after app is defined
 
 // 7. SOCKET LOGIC
-// ✅ FIX: path uses 'socketMain' not 'socketmain' — check your actual filename casing
 require('./sockets/socketmain')(io);
 
 // 8. SERVE FRONTEND (production only)
-// ✅ FIX: In development you DON'T need this — Vite runs on :5173 separately.
-// This only applies when you run `npm run build` and serve the built files.
 if (process.env.NODE_ENV === 'production') {
   const buildPath = path.join(__dirname, '../../client/dist');
   app.use(express.static(buildPath));
@@ -77,7 +82,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// 9. HEALTH CHECK — visit localhost:4000/api/health to confirm server is up
+// 9. HEALTH CHECK
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });

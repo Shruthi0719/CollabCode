@@ -1,62 +1,272 @@
-import { useState } from 'react';
+/**
+ * Dashboard.jsx
+ *
+ * Unified design system with all other pages:
+ *   Fonts   → Bebas Neue (display) · DM Mono (labels/code) · Outfit (body)
+ *   Colors  → #080a0f base · #00E5FF accent · #0e1118 card
+ *
+ * Add to index.html:
+ *   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ */
+
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, Code2, LogOut, Rocket, Hash, Terminal, 
-  LayoutGrid, Clock, User, Settings, Camera, Save, X, ChevronRight,
-  Search, Bell, Sparkles, Loader2, Monitor, Database, Activity
+import {
+  Plus, Code2, LogOut, Rocket, Hash,
+  LayoutGrid, Clock, User, Settings,
+  Search, Bell, Sparkles, Loader2, Monitor, Database,
+  Zap, Globe, Shield, ArrowUpRight, MoreHorizontal, Terminal,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { GradientButton } from '../components/ui/GradientButton';
 
-// --- SIDEBAR ICON COMPONENT ---
-function SidebarIcon({ icon, label, active, onClick }) {
+/* ── Tokens ─────────────────────────────────────────────────────── */
+const C = {
+  bg:       '#080a0f',
+  sidebar:  '#0a0c12',
+  card:     '#0e1118',
+  border:   'rgba(255,255,255,0.06)',
+  accent:   '#00E5FF',
+  accentBg: 'rgba(0,229,255,0.08)',
+  text:     '#ffffff',
+  muted:    'rgba(255,255,255,0.45)',
+  faint:    'rgba(255,255,255,0.04)',
+};
+
+/* ── Font injection ─────────────────────────────────────────────── */
+const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap';
+function useFonts() {
+  useEffect(() => {
+    if (!document.querySelector(`link[href="${FONT_HREF}"]`)) {
+      const l = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: FONT_HREF });
+      document.head.appendChild(l);
+    }
+    if (!document.getElementById('cc-fonts')) {
+      const s = document.createElement('style');
+      s.id = 'cc-fonts';
+      s.textContent = `*, *::before, *::after { font-family: 'Outfit', sans-serif !important; }
+        .mono, code, pre, [class*="mono"] { font-family: 'DM Mono', monospace !important; }
+        .display { font-family: 'Bebas Neue', sans-serif !important; }`;
+      document.head.appendChild(s);
+    }
+  }, []);
+}
+
+/* ── Shared motion ──────────────────────────────────────────────── */
+const PAGE = {
+  hidden:  { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22,1,0.36,1] } },
+  exit:    { opacity: 0, y: -8, transition: { duration: 0.15 } },
+};
+
+/* ── Nav ────────────────────────────────────────────────────────── */
+const NAV = [
+  { id: 'overview', Icon: LayoutGrid, label: 'Overview'   },
+  { id: 'projects', Icon: Code2,      label: 'Workspaces' },
+  { id: 'profile',  Icon: User,       label: 'Profile'    },
+  { id: 'history',  Icon: Clock,      label: 'History'    },
+];
+
+function NavItem({ icon: Icon, label, active, onClick }) {
   return (
-    <div className="relative group flex items-center justify-center w-full px-2">
-      <button 
+    <div className="relative group" style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+      <button
         onClick={onClick}
-        className={`p-3 rounded-xl transition-all duration-300 relative w-full flex items-center justify-center ${
-          active 
-            ? 'text-blue-400 bg-blue-400/10 shadow-[inset_0_0_15px_rgba(59,130,246,0.1)]' 
-            : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
-        }`}
+        title={label}
+        style={{
+          width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: active ? C.accentBg : 'transparent',
+          color: active ? C.accent : C.muted,
+          transition: 'all 0.18s',
+          position: 'relative',
+        }}
+        onMouseEnter={e => { if (!active) { e.currentTarget.style.background = C.faint; e.currentTarget.style.color = '#fff'; } }}
+        onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.muted; } }}
       >
-        {icon}
         {active && (
-          <motion.div 
-            layoutId="activeBar"
-            className="absolute left-[-10px] w-1 h-6 bg-blue-500 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+          <motion.div layoutId="navPill"
+            style={{ position: 'absolute', inset: 0, borderRadius: 12, background: C.accentBg, zIndex: -1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 35 }}
           />
         )}
+        <Icon size={17} strokeWidth={active ? 2.2 : 1.75} />
       </button>
+      {/* Tooltip */}
+      <div style={{
+        position: 'absolute', left: 'calc(100% + 14px)', top: '50%', transform: 'translateY(-50%)',
+        background: C.card, border: `1px solid ${C.border}`,
+        color: '#fff', fontFamily: "'DM Mono', monospace",
+        fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase',
+        padding: '6px 10px', borderRadius: 8, whiteSpace: 'nowrap', zIndex: 100,
+        opacity: 0, pointerEvents: 'none', transition: 'opacity 0.15s',
+      }} className="cc-tooltip">
+        {label}
+      </div>
+      <style>{`.group:hover .cc-tooltip { opacity: 1 !important; }`}</style>
+    </div>
+  );
+}
 
-      {/* Glassmorphic Tooltip */}
-      <div className="absolute left-16 bg-[#1e293b]/95 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:left-20 transition-all duration-300 z-[100] border border-white/10 whitespace-nowrap shadow-2xl">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-1 rounded-full bg-blue-400" />
+/* ── Stat chip ──────────────────────────────────────────────────── */
+function Stat({ icon: Icon, label, value, accent = C.accent }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      background: C.faint, border: `1px solid ${C.border}`,
+      borderRadius: 14, padding: '12px 18px', minWidth: 160,
+    }}>
+      <div style={{ padding: 8, borderRadius: 10, background: `${accent}14` }}>
+        <Icon size={14} style={{ color: accent }} strokeWidth={2} />
+      </div>
+      <div>
+        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 4 }}>
           {label}
         </div>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: C.text, lineHeight: 1 }}>{value}</div>
       </div>
     </div>
   );
 }
 
+/* ── Project row ────────────────────────────────────────────────── */
+const LANG_C = { JavaScript: '#f0db4f', Python: '#4b8bbe', TypeScript: '#3178c6', Rust: '#ce412b' };
+
+function ProjectRow({ project, onClick }) {
+  const col = LANG_C[project.lang] ?? C.accent;
+  return (
+    <motion.div whileHover={{ x: 4 }} onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 16px', borderRadius: 12,
+        border: '1px solid transparent', cursor: 'pointer',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = C.faint; e.currentTarget.style.borderColor = C.border; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: C.faint, border: `1px solid ${C.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent, flexShrink: 0,
+        }}>
+          <Code2 size={14} strokeWidth={1.75} />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>{project.name}</div>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted }}>
+            #{project.id} · {project.time}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{
+          fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700,
+          padding: '3px 10px', borderRadius: 999,
+          color: col, background: `${col}12`, border: `1px solid ${col}28`,
+        }}>
+          {project.lang}
+        </span>
+        <ArrowUpRight size={13} style={{ color: C.muted }} />
+      </div>
+    </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════════════════════════════ */
 export default function Dashboard() {
+  useFonts();
   const { user, logout, loading } = useAuth();
   const navigate = useNavigate();
-  
-  const [activeTab, setActiveTab] = useState('overview'); 
-  const [roomId, setRoomId] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    username: user?.username || 'shruthii18',
-    bio: user?.bio || 'Full-stack Developer | Open Source Contributor'
-  });
+  const [activeTab, setActiveTab] = useState('overview');
+  const [roomId, setRoomId]       = useState('');
 
-  const recentProjects = [
-    { id: 'L04S8F00', name: 'CollabCode_Project_1', time: '14 mins ago', lang: 'JavaScript' },
-    { id: 'K92J1A33', name: 'CollabCode_Project_2', time: '1 hour ago', lang: 'Python' },
-  ];
+  /* ── Real data from MongoDB ───────────────────────────────────── */
+  const [stats, setStats]           = useState({ activeRooms: 0, collaborators: 0, status: 'Loading…' });
+  const [recentProjects, setRecent] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
+    Promise.all([
+      fetch(`${BACKEND}/api/rooms/user`, { credentials: 'include' }).then(r => r.json()),
+      fetch(`${BACKEND}/api/stats`,      { credentials: 'include' }).then(r => r.json()),
+    ])
+      .then(([rooms, statsData]) => {
+        setRecent(rooms ?? []);
+        setStats({
+          activeRooms:    statsData?.activeRooms    ?? rooms?.length ?? 0,
+          collaborators:  statsData?.collaborators  ?? 0,
+          status:         statsData?.status         ?? 'Online',
+        });
+      })
+      .catch(() => {
+        /* fallback: show empty state instead of fake data */
+        setRecent([]);
+        setStats({ activeRooms: 0, collaborators: 0, status: 'Online' });
+      })
+      .finally(() => setDataLoading(false));
+  }, [user]);
+
+  const formData = {
+    username: user?.username ?? '',
+    bio:      user?.bio      ?? '',
+  };
+
+  /* ── Profile editing ──────────────────────────────────────────── */
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+  const [editProfile, setEditProfile] = useState({ username: formData.username, bio: formData.bio });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg]       = useState('');
+
+  const saveProfile = async () => {
+    setProfileSaving(true); setProfileMsg('');
+    try {
+      const res = await fetch(`${BACKEND}/api/auth/profile`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: editProfile.username, bio: editProfile.bio }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setProfileMsg('✓ Saved successfully');
+    } catch {
+      setProfileMsg('✗ Could not save. Try again.');
+    } finally {
+      setProfileSaving(false);
+      setTimeout(() => setProfileMsg(''), 3000);
+    }
+  };
+
+  /* ── Settings state ───────────────────────────────────────────── */
+  const [pwForm, setPwForm]   = useState({ current: '', next: '', confirm: '' });
+  const [pwMsg, setPwMsg]     = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+
+  const savePassword = async () => {
+    if (pwForm.next !== pwForm.confirm) { setPwMsg('✗ Passwords do not match'); return; }
+    if (pwForm.next.length < 8)         { setPwMsg('✗ Password must be 8+ characters'); return; }
+    setPwSaving(true); setPwMsg('');
+    try {
+      const res = await fetch(`${BACKEND}/api/auth/password`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d?.message || 'Failed'); }
+      setPwMsg('✓ Password updated');
+      setPwForm({ current: '', next: '', confirm: '' });
+    } catch (e) {
+      setPwMsg(`✗ ${e.message}`);
+    } finally {
+      setPwSaving(false);
+      setTimeout(() => setPwMsg(''), 4000);
+    }
+  };
 
   const handleCreateRoom = () => {
     const id = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -64,219 +274,660 @@ export default function Dashboard() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-      <Loader2 className="animate-spin text-blue-500" size={32} />
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Loader2 className="animate-spin" size={28} style={{ color: C.accent }} />
     </div>
   );
 
   return (
-    <div className="flex h-screen bg-[#020617] text-slate-300 selection:bg-blue-500/30 font-['Inter']">
-      
-      {/* SIDEBAR */}
-      <aside className="w-20 border-r border-white/5 bg-[#030816] flex flex-col items-center py-8 z-50">
-        <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/20 mb-10 cursor-pointer hover:scale-105 transition-transform" onClick={() => setActiveTab('overview')}>
-          <Rocket size={20} className="text-white" />
-        </div>
-        
-        <nav className="flex flex-col gap-6 w-full">
-          <SidebarIcon icon={<LayoutGrid size={22} />} label="Overview" active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} />
-          <SidebarIcon icon={<Code2 size={22} />} label="Workspaces" active={activeTab === 'projects'} onClick={() => setActiveTab('projects')} />
-          <SidebarIcon icon={<User size={22} />} label="Account Profile" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
-          <SidebarIcon icon={<Clock size={22} />} label="Activity History" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: C.bg, color: C.text, fontFamily: "'Outfit', sans-serif" }}>
+
+      {/* Grid bg */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        backgroundImage: `linear-gradient(${C.faint} 1px, transparent 1px), linear-gradient(90deg, ${C.faint} 1px, transparent 1px)`,
+        backgroundSize: '60px 60px',
+      }} />
+
+      {/* ── Sidebar ─────────────────────────────────── */}
+      <aside style={{
+        position: 'relative', zIndex: 20, width: 68, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: '28px 0', borderRight: `1px solid ${C.border}`,
+        background: C.sidebar, gap: 0,
+      }}>
+        {/* Logo */}
+        <button
+          onClick={() => setActiveTab('overview')}
+          style={{
+            width: 40, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 40, boxShadow: `0 0 20px ${C.accent}30`, transition: 'transform 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <Terminal size={18} color={C.bg} strokeWidth={2.5} />
+        </button>
+
+        {/* Nav */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', padding: '0 12px' }}>
+          {NAV.map(({ id, Icon, label }) => (
+            <NavItem key={id} icon={Icon} label={label} active={activeTab === id} onClick={() => setActiveTab(id)} />
+          ))}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-6 w-full">
-           <SidebarIcon icon={<Settings size={22} />} label="App Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
-           <button onClick={logout} className="flex items-center justify-center p-3 text-slate-600 hover:text-red-500 transition-colors group relative w-full">
-             <LogOut size={22} className="group-hover:-translate-x-1 transition-transform" />
-             <div className="absolute left-16 bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-bold px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all group-hover:left-20 pointer-events-none">
-                LOGOUT
-             </div>
-           </button>
+        {/* Bottom */}
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6, width: '100%', padding: '0 12px' }}>
+          <NavItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          <button
+            onClick={logout}
+            title="Sign out"
+            style={{
+              width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', color: C.muted, transition: 'all 0.15s', margin: '0 auto',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = C.muted; e.currentTarget.style.background = 'transparent'; }}
+          >
+            <LogOut size={17} strokeWidth={1.75} />
+          </button>
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="flex-1 overflow-y-auto bg-[#020617] p-8 lg:p-12 relative">
-        
-        {/* Top Header Bar */}
-        <div className="flex justify-between items-center mb-10">
-          <div className="relative group hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-blue-400" size={16} />
-            <input type="text" placeholder="Search workspaces..." className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-6 text-sm outline-none focus:border-blue-500/50 w-64 transition-all" />
+      {/* ── Main ────────────────────────────────────── */}
+      <main style={{ flex: 1, overflowY: 'auto', position: 'relative', zIndex: 10 }}>
+
+        {/* Top bar */}
+        <header style={{
+          position: 'sticky', top: 0, zIndex: 30,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 40px',
+          borderBottom: `1px solid ${C.border}`,
+          background: 'rgba(8,10,15,0.85)', backdropFilter: 'blur(16px)',
+        }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: C.muted }} />
+            <input
+              placeholder="Search workspaces…"
+              style={{
+                background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10,
+                padding: '8px 16px 8px 32px', fontSize: 12, color: C.text,
+                outline: 'none', width: 220, transition: 'border-color 0.2s',
+                fontFamily: "'Outfit', sans-serif",
+              }}
+              onFocus={e => e.target.style.borderColor = C.accent}
+              onBlur={e  => e.target.style.borderColor = C.border}
+            />
           </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 bg-white/5 border border-white/10 rounded-full text-slate-500 hover:text-white transition-all"><Bell size={18} /></button>
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full">
-              <span className="text-xs font-bold text-white uppercase tracking-tight">{user?.username}</span>
-              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-bold">{user?.username?.substring(0,1).toUpperCase()}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button style={{
+              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`,
+              background: C.faint, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: C.muted, cursor: 'pointer', transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = C.text}
+            onMouseLeave={e => e.currentTarget.style.color = C.muted}
+            >
+              <Bell size={14} />
+            </button>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: C.faint, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: '6px 12px',
+            }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: 8, background: C.accent,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: C.bg,
+              }}>
+                {user?.username?.charAt(0).toUpperCase()}
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{user?.username}</span>
             </div>
           </div>
-        </div>
+        </header>
 
-        <AnimatePresence mode="wait">
-          {/* TAB 1: OVERVIEW */}
-          {activeTab === 'overview' && (
-            <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-12">
-              <header className="flex justify-between items-end">
-                <div>
-                  <h1 className="text-4xl font-bold text-white tracking-tight mb-2">Workspace Dashboard</h1>
-                  <p className="text-slate-500 text-sm italic">Review your collaborative history and manage active sessions.</p>
-                </div>
-                <GradientButton onClick={handleCreateRoom} className="px-6 py-2.5 text-sm font-bold shadow-lg shadow-blue-500/10">
-                  <Plus size={18} className="mr-2 inline" /> New Session
-                </GradientButton>
-              </header>
+        {/* Content */}
+        <div style={{ padding: '40px', maxWidth: 1280, margin: '0 auto' }}>
+          <AnimatePresence mode="wait">
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Profile Card */}
-                <div className="lg:col-span-4">
-                  <div className="bg-[#0a0f1e] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl relative">
-                    <div className="h-28 bg-gradient-to-r from-blue-700 to-indigo-800 opacity-60 relative">
-                       <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-[#0a0f1e] to-transparent" />
+            {/* ─ OVERVIEW ──────────────────────────────── */}
+            {activeTab === 'overview' && (
+              <motion.div key="overview" variants={PAGE} initial="hidden" animate="visible" exit="exit" style={{ display: 'flex', flexDirection: 'column', gap: 36 }}>
+
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-block', width: 20, height: 1, background: C.accent }} /> Command Center
                     </div>
-                    <div className="px-10 pb-10 -mt-10 relative">
-                      <div className="w-20 h-20 rounded-2xl bg-[#030816]/60 backdrop-blur-xl flex items-center justify-center text-3xl font-extrabold text-blue-400 shadow-xl border border-white/10 mb-6">
-                        {user?.username?.substring(0, 2).toUpperCase()}
+                    <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, color: C.text, margin: 0, lineHeight: 1, letterSpacing: '0.01em' }}>
+                      Hello, <span style={{ color: C.accent }}>{formData.username}</span>
+                    </h1>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={handleCreateRoom}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '12px 24px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                      background: C.accent, color: C.bg,
+                      fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 700,
+                      boxShadow: `0 0 20px ${C.accent}30`,
+                    }}
+                  >
+                    <Plus size={15} strokeWidth={2.5} /> New Session
+                  </motion.button>
+                </div>
+
+                {/* Stats */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+                  <Stat icon={Zap}    label="Active Rooms"  value={dataLoading ? '…' : String(stats.activeRooms)}   accent={C.accent}  />
+                  <Stat icon={Globe}  label="Collaborators" value={dataLoading ? '…' : String(stats.collaborators)} accent="#4ade80"   />
+                  <Stat icon={Shield} label="Status"        value={dataLoading ? '…' : stats.status}                accent="#facc15"   />
+                </div>
+
+                {/* Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
+
+                  {/* Profile card */}
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, overflow: 'hidden' }}>
+                    {/* Banner */}
+                    <div style={{ height: 80, background: `linear-gradient(135deg, ${C.accent}18 0%, rgba(99,102,241,0.12) 100%)`, position: 'relative' }}>
+                      <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${C.faint} 1px, transparent 1px), linear-gradient(90deg, ${C.faint} 1px, transparent 1px)`, backgroundSize: '20px 20px' }} />
+                    </div>
+                    <div style={{ padding: '0 24px 24px' }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: 14,
+                        background: C.card, border: `2px solid ${C.bg}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.accent,
+                        marginTop: -28, marginBottom: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                      }}>
+                        {formData.username.substring(0, 2).toUpperCase()}
                       </div>
-                      <h2 className="text-3xl font-extrabold text-white flex items-center gap-2">{formData.username}<Sparkles size={16} className="text-blue-500 opacity-70" /></h2>
-                      <p className="text-slate-500 text-xs mb-4">{user?.email || 'shruthi18@example.com'}</p>
-                      <p className="text-slate-400 text-sm leading-relaxed mb-8">{formData.bio}</p>
-                      <button onClick={() => setActiveTab('profile')} className="w-full py-3.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold border border-white/10 transition-all flex items-center justify-center gap-2.5 shadow-inner">
-                         <Settings size={16} /> Manage Account
+                      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.text, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {formData.username}
+                        <Sparkles size={12} style={{ color: C.accent, opacity: 0.7 }} />
+                      </div>
+                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, marginBottom: 12 }}>{user?.email}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 20 }}>{formData.bio}</div>
+                      <button
+                        onClick={() => setActiveTab('profile')}
+                        style={{
+                          width: '100%', padding: '10px 0', borderRadius: 10, cursor: 'pointer',
+                          background: C.faint, border: `1px solid ${C.border}`,
+                          fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.color = C.accent; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = 'rgba(255,255,255,0.6)'; }}
+                      >
+                        <Settings size={12} /> Manage Profile
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {/* Projects Column */}
-                <div className="lg:col-span-8 space-y-6">
-                  <div className="bg-[#0a0f1e] border border-white/10 p-6 rounded-[2rem] flex items-center justify-between shadow-lg">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-400"><Hash size={20} /></div>
-                      <div>
-                        <h3 className="font-bold text-white text-sm">Join by ID</h3>
-                        <p className="text-slate-500 text-[10px] uppercase tracking-wider font-bold">Enter room identifier</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <input value={roomId} onChange={(e) => setRoomId(e.target.value)} placeholder="session-code" className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs outline-none w-32 focus:w-48 transition-all" />
-                      <button onClick={() => roomId && navigate(`/room/${roomId}`)} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all border border-white/5">Join</button>
-                    </div>
-                  </div>
+                  {/* Right col */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-                  <div className="space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 px-2">Active Workspaces</h3>
-                    {recentProjects.map((project) => (
-                      <div key={project.id} onClick={() => navigate(`/room/${project.id}`)} className="group bg-[#0a0f1e] border border-white/5 hover:border-blue-500/30 p-5 rounded-[1.5rem] flex items-center justify-between cursor-pointer transition-all hover:scale-[1.01]">
-                        <div className="flex items-center gap-5">
-                          <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-blue-600 group-hover:text-white transition-all"><Code2 size={20} /></div>
-                          <div>
-                            <h4 className="text-sm font-bold text-white">{project.name}</h4>
-                            <p className="text-[10px] text-slate-600">ID: {project.id} • Last active {project.time}</p>
-                          </div>
+                    {/* Join by ID */}
+                    <div style={{
+                      background: C.card, border: `1px solid ${C.border}`, borderRadius: 18,
+                      padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ padding: 10, borderRadius: 12, background: C.accentBg }}>
+                          <Hash size={15} style={{ color: C.accent }} />
                         </div>
-                        <ChevronRight size={18} className="text-slate-700 group-hover:text-blue-400" />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Join by Room ID</div>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Enter session code</div>
+                        </div>
                       </div>
-                    ))}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          value={roomId}
+                          onChange={e => setRoomId(e.target.value)}
+                          placeholder="SESSION-CODE"
+                          style={{
+                            background: C.faint, border: `1px solid ${C.border}`,
+                            borderRadius: 10, padding: '8px 14px',
+                            fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.text,
+                            outline: 'none', width: 150, transition: 'border-color 0.2s',
+                          }}
+                          onFocus={e => e.target.style.borderColor = C.accent}
+                          onBlur={e  => e.target.style.borderColor = C.border}
+                        />
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => roomId && navigate(`/room/${roomId}`)}
+                          style={{
+                            padding: '8px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                            background: C.accent, color: C.bg,
+                            fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 700,
+                          }}
+                        >
+                          Join →
+                        </motion.button>
+                      </div>
+                    </div>
+
+                    {/* Workspace list */}
+                    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, overflow: 'hidden', flex: 1 }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '14px 20px', borderBottom: `1px solid ${C.border}`,
+                      }}>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+                          Active Workspaces
+                        </div>
+                        <button
+                          onClick={() => setActiveTab('projects')}
+                          style={{ fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.accent, background: 'none', border: 'none', cursor: 'pointer' }}
+                        >
+                          View all →
+                        </button>
+                      </div>
+                      <div style={{ padding: 10 }}>
+                        {dataLoading ? (
+                          <div style={{ padding: '20px', textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, letterSpacing: '0.12em' }}>
+                            LOADING…
+                          </div>
+                        ) : recentProjects.length === 0 ? (
+                          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>No active workspaces yet.</div>
+                            <button onClick={handleCreateRoom} style={{
+                              background: C.accentBg, border: `1px solid ${C.accent}30`,
+                              color: C.accent, borderRadius: 8, padding: '7px 16px',
+                              fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}>
+                              Create your first room →
+                            </button>
+                          </div>
+                        ) : (
+                          recentProjects.slice(0, 5).map(p => (
+                            <ProjectRow key={p.id || p._id} project={{ id: p.id || p._id, name: p.name, time: p.lastActive ?? p.time ?? '—', lang: p.language ?? p.lang ?? 'Code' }} onClick={() => navigate(`/room/${p.id || p._id}`)} />
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
-          {/* TAB 2: PROJECTS VIEW */}
-          {activeTab === 'projects' && (
-            <motion.div key="projects" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-white tracking-tight">All Workspaces</h2>
-                <span className="bg-blue-600/10 text-blue-400 px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-blue-600/20">2 Active Rooms</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {recentProjects.map(p => (
-                   <div key={p.id} className="bg-[#0a0f1e] border border-white/5 rounded-3xl p-6 hover:border-blue-500/20 transition-all group cursor-pointer" onClick={() => navigate(`/room/${p.id}`)}>
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6"><Monitor size={20}/></div>
-                      <h3 className="font-bold text-white mb-2">{p.name}</h3>
-                      <p className="text-xs text-slate-500 mb-6 leading-relaxed">A collaborative environment for {p.lang} development.</p>
-                      <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                        <span className="text-[10px] text-slate-600 font-bold uppercase">{p.lang}</span>
-                        <ChevronRight size={14} className="text-slate-700" />
-                      </div>
-                   </div>
-                 ))}
-                 <div onClick={handleCreateRoom} className="border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center justify-center p-6 text-slate-600 hover:text-blue-400 hover:border-blue-500/20 hover:bg-blue-500/5 transition-all cursor-pointer group">
-                    <Plus size={32} className="mb-2 group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-xs">Initialize New Room</span>
-                 </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* TAB 3: PROFILE VIEW */}
-          {activeTab === 'profile' && (
-             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-2xl mx-auto space-y-10">
-                <div className="text-center mb-10">
-                   <div className="w-32 h-32 rounded-[2rem] bg-gradient-to-br from-blue-600 to-purple-600 mx-auto mb-6 flex items-center justify-center text-4xl font-bold text-white shadow-2xl">
-                     {user?.username?.substring(0,2).toUpperCase()}
-                   </div>
-                   <h2 className="text-3xl font-bold text-white">{user?.username}</h2>
-                   <p className="text-slate-500">{user?.email}</p>
+            {/* ─ WORKSPACES ──────────────────────────────── */}
+            {activeTab === 'projects' && (
+              <motion.div key="projects" variants={PAGE} initial="hidden" animate="visible" exit="exit" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 20, height: 1, background: C.accent, display: 'inline-block' }} /> Your Rooms
+                    </div>
+                    <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: C.text, margin: 0, letterSpacing: '0.01em' }}>Workspaces</h2>
+                  </div>
+                  <span style={{
+                    fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase',
+                    color: C.accent, background: C.accentBg, border: `1px solid ${C.accent}30`,
+                    padding: '6px 14px', borderRadius: 999,
+                  }}>
+                    {dataLoading ? '…' : `${recentProjects.length} Active`}
+                  </span>
                 </div>
-                <div className="bg-[#0a0f1e] border border-white/5 rounded-[2.5rem] p-8 space-y-6">
-                   <h3 className="text-xs font-bold uppercase tracking-widest text-blue-400">Profile Settings</h3>
-                   <div className="grid gap-6">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-600 uppercase">Username</label>
-                        <input type="text" value={formData.username} readOnly className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-400 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-600 uppercase">Biography</label>
-                        <textarea value={formData.bio} readOnly className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-400 outline-none h-24 resize-none" />
-                      </div>
-                      <button className="py-4 bg-white/5 border border-white/10 rounded-xl text-xs font-bold hover:bg-white/10 transition-all">Request Changes</button>
-                   </div>
-                </div>
-             </motion.div>
-          )}
 
-          {/* TAB 4: HISTORY VIEW */}
-          {activeTab === 'history' && (
-            <motion.div key="history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <div className="flex items-center gap-3 mb-8">
-                <Activity size={24} className="text-blue-500" />
-                <h2 className="text-3xl font-bold text-white tracking-tight">Session History</h2>
-              </div>
-              <div className="bg-[#0a0f1e] border border-white/5 rounded-[2.5rem] overflow-hidden">
-                 <table className="w-full text-left">
-                    <thead className="bg-white/5">
-                       <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          <th className="px-8 py-4">Workspace</th>
-                          <th className="px-8 py-4">Status</th>
-                          <th className="px-8 py-4">Last Joined</th>
-                          <th className="px-8 py-4">Actions</th>
-                       </tr>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                  {dataLoading ? (
+                    <div style={{ gridColumn: '1/-1', padding: 32, textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, letterSpacing: '0.12em' }}>LOADING…</div>
+                  ) : recentProjects.map(p => {
+                    const id  = p.id || p._id;
+                    const lang = p.language ?? p.lang ?? 'Code';
+                    const col  = LANG_C[lang] ?? C.accent;
+                    return (
+                      <motion.div key={id} whileHover={{ y: -3 }}
+                        onClick={() => navigate(`/room/${id}`)}
+                        style={{
+                          background: C.card, border: `1px solid ${C.border}`, borderRadius: 20,
+                          padding: 24, cursor: 'pointer', transition: 'border-color 0.15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = `${C.accent}40`}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.faint, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent }}>
+                            <Monitor size={16} strokeWidth={1.75} />
+                          </div>
+                          <button style={{ padding: 6, borderRadius: 8, background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>
+                            <MoreHorizontal size={14} />
+                          </button>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 6 }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, marginBottom: 20 }}>
+                          {lang} workspace · {p.lastActive ?? p.time ?? '—'}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+                          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: col, background: `${col}10`, border: `1px solid ${col}25`, padding: '3px 10px', borderRadius: 999 }}>
+                            {lang}
+                          </span>
+                          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted }}>#{id}</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+
+                  <motion.div whileHover={{ y: -3 }} onClick={handleCreateRoom}
+                    style={{
+                      border: `2px dashed ${C.border}`, borderRadius: 20,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      padding: 24, cursor: 'pointer', minHeight: 180, transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = `${C.accent}50`; e.currentTarget.style.background = C.accentBg; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: C.faint, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent, marginBottom: 10 }}>
+                      <Plus size={17} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>New Room</span>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ─ PROFILE ──────────────────────────────── */}
+            {activeTab === 'profile' && (
+              <motion.div key="profile" variants={PAGE} initial="hidden" animate="visible" exit="exit"
+                style={{ maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 20, height: 1, background: C.accent, display: 'inline-block' }} /> Account
+                  </div>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: C.text, margin: 0 }}>Profile</h2>
+                </div>
+
+                {/* Avatar card */}
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, overflow: 'hidden' }}>
+                  <div style={{ height: 76, background: `linear-gradient(135deg, ${C.accent}15, rgba(99,102,241,0.1))`, position: 'relative' }}>
+                    <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${C.faint} 1px, transparent 1px), linear-gradient(90deg, ${C.faint} 1px, transparent 1px)`, backgroundSize: '20px 20px' }} />
+                  </div>
+                  <div style={{ padding: '0 24px 24px' }}>
+                    <div style={{
+                      width: 56, height: 56, borderRadius: 14, marginTop: -28, marginBottom: 14,
+                      background: C.card, border: `2px solid ${C.bg}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.accent,
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                    }}>
+                      {user?.username?.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: C.text, marginBottom: 3 }}>{user?.username}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted }}>{user?.email}</div>
+                  </div>
+                </div>
+
+                {/* Editable fields */}
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Edit Profile</div>
+
+                  {/* Username */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Username</label>
+                    <input
+                      value={editProfile.username}
+                      onChange={e => setEditProfile(p => ({ ...p, username: e.target.value }))}
+                      style={{
+                        background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10,
+                        padding: '12px 16px', fontSize: 13, color: C.text,
+                        fontFamily: "'DM Mono', monospace", outline: 'none', transition: 'border-color 0.15s',
+                      }}
+                      onFocus={e => e.target.style.borderColor = C.accent}
+                      onBlur={e  => e.target.style.borderColor = C.border}
+                    />
+                  </div>
+
+                  {/* Email — read-only */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Email</label>
+                    <input readOnly value={user?.email ?? '—'} style={{
+                      background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 10,
+                      padding: '12px 16px', fontSize: 13, color: C.muted,
+                      fontFamily: "'DM Mono', monospace", outline: 'none', cursor: 'not-allowed',
+                    }} />
+                    <span style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>Email cannot be changed.</span>
+                  </div>
+
+                  {/* Bio */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Bio</label>
+                    <textarea
+                      rows={3}
+                      value={editProfile.bio}
+                      onChange={e => setEditProfile(p => ({ ...p, bio: e.target.value }))}
+                      placeholder="Tell your collaborators about yourself…"
+                      style={{
+                        background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10,
+                        padding: '12px 16px', fontSize: 13, color: C.text,
+                        fontFamily: "'Outfit', sans-serif", outline: 'none', resize: 'vertical',
+                        transition: 'border-color 0.15s',
+                      }}
+                      onFocus={e => e.target.style.borderColor = C.accent}
+                      onBlur={e  => e.target.style.borderColor = C.border}
+                    />
+                  </div>
+
+                  {/* Feedback */}
+                  {profileMsg && (
+                    <div style={{
+                      fontSize: 12, padding: '8px 14px', borderRadius: 8,
+                      color: profileMsg.startsWith('✓') ? '#4ade80' : '#f87171',
+                      background: profileMsg.startsWith('✓') ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
+                      border: `1px solid ${profileMsg.startsWith('✓') ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                    }}>
+                      {profileMsg}
+                    </div>
+                  )}
+
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={saveProfile}
+                    disabled={profileSaving}
+                    style={{
+                      width: '100%', padding: '13px 0', borderRadius: 10, border: 'none', cursor: profileSaving ? 'not-allowed' : 'pointer',
+                      background: profileSaving ? `${C.accent}60` : C.accent,
+                      color: C.bg, fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: `0 0 18px ${C.accent}20`,
+                    }}
+                  >
+                    {profileSaving
+                      ? <><span style={{ width: 14, height: 14, border: `2px solid ${C.bg}40`, borderTopColor: C.bg, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} /> Saving…</>
+                      : 'Save Changes'
+                    }
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ─ SETTINGS ─────────────────────────────── */}
+            {activeTab === 'settings' && (
+              <motion.div key="settings" variants={PAGE} initial="hidden" animate="visible" exit="exit"
+                style={{ maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 20, height: 1, background: C.accent, display: 'inline-block' }} /> App
+                  </div>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: C.text, margin: 0 }}>Settings</h2>
+                </div>
+
+                {/* Change password */}
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Change Password</div>
+
+                  {[
+                    { label: 'Current Password', key: 'current' },
+                    { label: 'New Password',     key: 'next'    },
+                    { label: 'Confirm Password', key: 'confirm' },
+                  ].map(({ label, key }) => (
+                    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{label}</label>
+                      <input
+                        type="password"
+                        value={pwForm[key]}
+                        onChange={e => setPwForm(p => ({ ...p, [key]: e.target.value }))}
+                        placeholder="••••••••"
+                        style={{
+                          background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10,
+                          padding: '12px 16px', fontSize: 13, color: C.text,
+                          fontFamily: "'Outfit', sans-serif", outline: 'none', transition: 'border-color 0.15s',
+                        }}
+                        onFocus={e => e.target.style.borderColor = C.accent}
+                        onBlur={e  => e.target.style.borderColor = C.border}
+                      />
+                    </div>
+                  ))}
+
+                  {pwMsg && (
+                    <div style={{
+                      fontSize: 12, padding: '8px 14px', borderRadius: 8,
+                      color: pwMsg.startsWith('✓') ? '#4ade80' : '#f87171',
+                      background: pwMsg.startsWith('✓') ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
+                      border: `1px solid ${pwMsg.startsWith('✓') ? 'rgba(74,222,128,0.2)' : 'rgba(248,113,113,0.2)'}`,
+                    }}>
+                      {pwMsg}
+                    </div>
+                  )}
+
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={savePassword}
+                    disabled={pwSaving}
+                    style={{
+                      width: '100%', padding: '13px 0', borderRadius: 10, border: 'none', cursor: pwSaving ? 'not-allowed' : 'pointer',
+                      background: pwSaving ? `${C.accent}60` : C.accent,
+                      color: C.bg, fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      boxShadow: `0 0 18px ${C.accent}20`,
+                    }}
+                  >
+                    {pwSaving
+                      ? <><span style={{ width: 14, height: 14, border: `2px solid ${C.bg}40`, borderTopColor: C.bg, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite' }} /> Updating…</>
+                      : 'Update Password'
+                    }
+                  </motion.button>
+                </div>
+
+                {/* Danger zone */}
+                <div style={{ background: C.card, border: '1px solid rgba(248,113,113,0.15)', borderRadius: 24, padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: '#f87171', letterSpacing: '0.18em', textTransform: 'uppercase' }}>Danger Zone</div>
+                  <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, margin: 0 }}>
+                    Signing out will end your current session. Deleting your account is permanent and cannot be undone.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={logout}
+                      style={{
+                        padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(248,113,113,0.25)',
+                        background: 'rgba(248,113,113,0.08)', color: '#f87171',
+                        fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(248,113,113,0.16)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(248,113,113,0.08)'}
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ─ HISTORY ──────────────────────────────── */}
+            {activeTab === 'history' && (
+              <motion.div key="history" variants={PAGE} initial="hidden" animate="visible" exit="exit" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+                <div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 20, height: 1, background: C.accent, display: 'inline-block' }} /> Logs
+                  </div>
+                  <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: C.text, margin: 0 }}>Session History</h2>
+                </div>
+
+                <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                        {['Workspace', 'Language', 'Last Active', ''].map(h => (
+                          <th key={h} style={{ padding: '14px 28px', textAlign: 'left', fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500 }}>{h}</th>
+                        ))}
+                      </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
-                       {[1,2,3,4].map(i => (
-                         <tr key={i} className="hover:bg-white/5 transition-all group">
-                            <td className="px-8 py-6">
-                               <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 text-xs"><Database size={14}/></div>
-                                  <span className="text-sm font-bold text-slate-300">Archive_Session_{i}</span>
-                               </div>
-                            </td>
-                            <td className="px-8 py-6"><span className="px-3 py-1 bg-green-500/10 text-green-500 rounded-full text-[9px] font-bold uppercase">Completed</span></td>
-                            <td className="px-8 py-6 text-xs text-slate-500">Mar {12-i}, 2026</td>
-                            <td className="px-8 py-6"><button className="text-blue-400 text-xs font-bold hover:underline">Re-enter</button></td>
-                         </tr>
-                       ))}
+                    <tbody>
+                      {dataLoading ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '32px', textAlign: 'center', fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, letterSpacing: '0.12em' }}>
+                            LOADING…
+                          </td>
+                        </tr>
+                      ) : recentProjects.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '40px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, color: C.muted }}>No session history yet.</div>
+                            <div style={{ fontSize: 11, color: C.muted, marginTop: 6, opacity: 0.6 }}>Sessions you join will appear here.</div>
+                          </td>
+                        </tr>
+                      ) : (
+                        recentProjects.map((p, i) => {
+                          const id   = p.id || p._id;
+                          const name = p.name || id;
+                          const lang = p.language ?? p.lang ?? '—';
+                          const date = p.lastActive
+                            ? new Date(p.lastActive).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : p.time ?? '—';
+                          return (
+                            <tr key={id} style={{ borderBottom: i < recentProjects.length - 1 ? `1px solid ${C.border}` : 'none', transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = C.faint}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <td style={{ padding: '18px 28px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  <div style={{ width: 32, height: 32, borderRadius: 9, background: C.faint, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent, flexShrink: 0 }}>
+                                    <Database size={13} strokeWidth={1.75} />
+                                  </div>
+                                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.text, fontWeight: 500 }}>{name}</span>
+                                </div>
+                              </td>
+                              <td style={{ padding: '18px 28px' }}>
+                                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: LANG_C[lang] ?? C.muted }}>{lang}</span>
+                              </td>
+                              <td style={{ padding: '18px 28px', fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.muted }}>{date}</td>
+                              <td style={{ padding: '18px 28px', textAlign: 'right' }}>
+                                <button
+                                  onClick={() => navigate(`/room/${id}`)}
+                                  style={{
+                                    fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.accent,
+                                    background: 'none', border: `1px solid ${C.accent}30`, borderRadius: 8,
+                                    padding: '6px 14px', cursor: 'pointer', transition: 'background 0.15s',
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = C.accentBg}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                >
+                                  Re-enter →
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
-                 </table>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
       </main>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
