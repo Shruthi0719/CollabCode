@@ -1,10 +1,3 @@
-/**
- * LoginPage.jsx
- *
- * Standalone login page. Part of the CollabCode design system.
- * #080a0f · #00E5FF · Bebas Neue + DM Mono + Outfit
- */
-
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -12,9 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { Terminal, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 const C = {
   bg:     '#080a0f',
-  card:   '#0e1118',
   border: 'rgba(255,255,255,0.07)',
   accent: '#00E5FF',
   text:   '#ffffff',
@@ -39,7 +33,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await axios.post('/api/auth/login', formData, { withCredentials: true });
+      const { data } = await axios.post(`${BACKEND}/api/auth/login`, formData, { withCredentials: true });
       setUser(data);
       navigate('/dashboard');
     } catch (err) {
@@ -57,12 +51,18 @@ export default function LoginPage() {
       {/* Grid */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        backgroundImage: `linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)`,
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)`,
         backgroundSize: '60px 60px',
       }} />
 
       {/* Glow */}
-      <div style={{ position: 'fixed', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: 600, height: 400, background: `radial-gradient(circle, ${C.accent}08 0%, transparent 65%)`, borderRadius: '50%', pointerEvents: 'none', zIndex: 0 }} />
+      <div style={{
+        position: 'fixed', top: '-10%', left: '50%', transform: 'translateX(-50%)',
+        width: 600, height: 400,
+        background: `radial-gradient(circle, ${C.accent}08 0%, transparent 65%)`,
+        borderRadius: '50%', pointerEvents: 'none', zIndex: 0,
+      }} />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -75,7 +75,9 @@ export default function LoginPage() {
           <div style={{ width: 36, height: 36, borderRadius: 10, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Terminal size={17} color={C.bg} strokeWidth={2.5} />
           </div>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 500, color: C.text, letterSpacing: '0.1em' }}>COLLABCODE</span>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 500, color: C.text, letterSpacing: '0.1em' }}>
+            COLLABCODE
+          </span>
         </div>
 
         {/* Heading */}
@@ -109,7 +111,9 @@ export default function LoginPage() {
 
           {/* Email */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Email Address</label>
+            <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              Email Address
+            </label>
             <input
               type="email" name="email" required value={formData.email} onChange={handleChange}
               placeholder="name@company.com"
@@ -125,10 +129,13 @@ export default function LoginPage() {
 
           {/* Password */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Password</label>
+            <label style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+              Password
+            </label>
             <div style={{ position: 'relative' }}>
               <input
-                type={showPass ? 'text' : 'password'} name="password" required value={formData.password} onChange={handleChange}
+                type={showPass ? 'text' : 'password'} name="password" required
+                value={formData.password} onChange={handleChange}
                 placeholder="••••••••"
                 style={{
                   width: '100%', background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10,
@@ -138,8 +145,10 @@ export default function LoginPage() {
                 onFocus={e => e.target.style.borderColor = C.accent}
                 onBlur={e  => e.target.style.borderColor = C.border}
               />
-              <button type="button" onClick={() => setShowPass(s => !s)}
-                style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>
+              <button type="button" onClick={() => setShowPass(s => !s)} style={{
+                position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', color: C.muted, cursor: 'pointer',
+              }}>
                 {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
