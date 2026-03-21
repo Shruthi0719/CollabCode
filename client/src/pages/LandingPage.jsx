@@ -12,6 +12,8 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 const C = {
   bg:     '#080a0f',
   border: 'rgba(255,255,255,0.07)',
@@ -111,7 +113,7 @@ export default function LandingPage() {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const ep = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      const ep = isLogin ? `${BACKEND}/api/auth/login` : `${BACKEND}/api/auth/signup`;
       const { data } = await axios.post(ep, formData, { withCredentials: true });
       setUser(data);
       navigate('/dashboard');
