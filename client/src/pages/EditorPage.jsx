@@ -11,12 +11,13 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
-import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown, MessageSquare } from 'lucide-react';
+import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown, MessageSquare, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import socket from '../socket';
 import ChatBox from '../components/ChatBox';
+import ProblemPanel from '../components/ProblemPanel';
 import Terminal from '../components/Terminal';
 import { LANGUAGES } from '../constants/languages';
 import { monacoChangeToOp, applyOp, transform } from '../utils/otEngine';
@@ -66,6 +67,7 @@ export default function EditorPage() {
   const [copied,         setCopied]         = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [isChatOpen,     setIsChatOpen]     = useState(true);
+  const [isProblemOpen,  setIsProblemOpen]  = useState(false);
   const [onlineUsers,    setOnlineUsers]    = useState([]);
   const [htmlPreview,    setHtmlPreview]    = useState('');
   const [cursors,        setCursors]        = useState({});
@@ -271,6 +273,19 @@ export default function EditorPage() {
     socket.emit('code-change', { roomId, code: newTemplate });
   };
 
+  // ── Load a practice problem — syncs to all collaborators via socket ──
+  const handleLoadProblem = (starterCode, problem) => {
+    // Use same flow as language change so OT resets and all users get the new code
+    const lang = language;
+    versionRef.current = 0;
+    pendingOps.current = [];
+    setCode(starterCode);
+    setOutput('');
+    socket.emit('code-change', { roomId, code: starterCode });
+    // Also broadcast language in case problem has a specific one
+    socket.emit('language-change', { roomId, language: lang });
+  };
+
   const runCode = async () => {
     if (isExecuting) return;
     if (language === 'html') { setHtmlPreview(code); setIsTerminalOpen(false); return; }
@@ -421,6 +436,21 @@ export default function EditorPage() {
       {/* ── WORKSPACE ──────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
+        {/* Problem panel — slides in from left */}
+        <AnimatePresence>
+          {isProblemOpen && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              style={{ flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${C.border}` }}
+            >
+              <ProblemPanel language={language} onLoadProblem={handleLoadProblem} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Editor column */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
@@ -489,6 +519,19 @@ export default function EditorPage() {
                 <TerminalIcon size={13} /> CONSOLE
               </button>
             )}
+
+            {/* Problems toggle */}
+            <button
+              onClick={() => setIsProblemOpen(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: '0.12em',
+                color: isProblemOpen ? C.accent : C.muted, transition: 'color 0.15s',
+              }}
+            >
+              <BookOpen size={13} /> PROBLEMS
+            </button>
           </div>
 
           {/* Monaco */}
