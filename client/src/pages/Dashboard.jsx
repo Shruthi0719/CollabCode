@@ -19,6 +19,7 @@ import {
   Zap, Globe, Shield, ArrowUpRight, MoreHorizontal, Terminal,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { toast, friendlyError } from '../utils/toast';
 
 /* ── Tokens ─────────────────────────────────────────────────────── */
 const C = {
@@ -223,9 +224,10 @@ export default function Dashboard() {
           status:        statsData?.status        ?? 'Online',
         });
       })
-      .catch(() => {
+      .catch((err) => {
         setRecent([]);
         setStats({ activeRooms: 0, collaborators: 0, status: 'Online' });
+        toast.warn('Could not load workspace data — server may be waking up');
       })
       .finally(() => setDataLoading(false));
   }, [user]);
@@ -251,6 +253,7 @@ export default function Dashboard() {
       });
       if (!res.ok) throw new Error('Failed');
       setProfileMsg('✓ Saved successfully');
+      toast.success('Profile updated!');
     } catch {
       setProfileMsg('✗ Could not save. Try again.');
     } finally {
@@ -276,6 +279,7 @@ export default function Dashboard() {
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d?.message || 'Failed'); }
       setPwMsg('✓ Password updated');
+      toast.success('Password updated successfully!');
       setPwForm({ current: '', next: '', confirm: '' });
     } catch (e) {
       setPwMsg(`✗ ${e.message}`);

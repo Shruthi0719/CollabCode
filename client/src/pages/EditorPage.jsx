@@ -11,7 +11,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
-import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown, MessageSquare, BookOpen } from 'lucide-react';
+import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown, MessageSquare, BookOpen, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -22,7 +22,10 @@ import Terminal from '../components/Terminal';
 import { LANGUAGES } from '../constants/languages';
 import { monacoChangeToOp, applyOp, transform } from '../utils/otEngine';
 
+import { toast, friendlyError } from '../utils/toast';
+
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+const FRONTEND = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
 
 const C = {
   bg:      '#080a0f',
@@ -295,19 +298,29 @@ export default function EditorPage() {
       const { run } = response.data;
       const result  = (run.stderr && !run.output) ? `[stderr]\n${run.stderr}` : run.output || '(No output)';
       broadcastOutput(result, false);
+      if (run.stderr && !run.output) toast.warn('Code ran with errors — check the console');
+      else toast.success('Code executed successfully');
     } catch (err) {
       let msg;
-      if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') msg = 'Error: Cannot reach server.';
-      else if (err.code === 'ECONNABORTED') msg = 'Error: Execution timed out.';
-      else msg = `Error: ${err?.response?.data?.run?.stderr || err?.response?.data?.error || err.message}`;
+      if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK') msg = 'Server is waking up — try again in a few seconds';
+      else if (err.code === 'ECONNABORTED') msg = 'Execution timed out — try a simpler input';
+      else msg = friendlyError(err);
       broadcastOutput(msg, false);
+      toast.error(msg);
     }
   };
 
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId);
     setCopied(true);
+    toast.success('Room ID copied!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyInviteLink = () => {
+    const link = `${FRONTEND}/room/${roomId}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Invite link copied — share it with your team!');
   };
 
   /* ── Render ──────────────────────────────────────────────────────── */
@@ -399,6 +412,22 @@ export default function EditorPage() {
           >
             <MessageSquare size={13} />
             Chat
+          </button>
+
+          {/* Copy Invite Link */}
+          <button
+            onClick={copyInviteLink}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '7px 14px', borderRadius: 9,
+              background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)',
+              fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600,
+              color: C.accent, cursor: 'pointer', transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,255,0.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,229,255,0.08)'}
+          >
+            <LinkIcon size={13} /> Invite
           </button>
 
           {/* Copy ID */}
