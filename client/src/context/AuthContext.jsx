@@ -24,9 +24,15 @@ export const AuthProvider = ({ children }) => {
 
   const setUser = (u) => {
     if (u) {
-      // Store token separately for API calls
       if (u.token) localStorage.setItem('cc_token', u.token);
       localStorage.setItem('cc_user', JSON.stringify(u));
+      // Redirect to saved URL (e.g. room link) after login
+      const redirect = sessionStorage.getItem('cc_redirect');
+      if (redirect) {
+        sessionStorage.removeItem('cc_redirect');
+        window.location.href = redirect;
+        return;
+      }
     } else {
       localStorage.removeItem('cc_token');
       localStorage.removeItem('cc_user');
