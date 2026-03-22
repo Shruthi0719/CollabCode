@@ -163,8 +163,8 @@ function ProjectRow({ project, onClick }) {
           <Code2 size={14} strokeWidth={1.75} />
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>{project.name}</div>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 3 }}>{project.name}</div>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.muted }}>
             #{project.id} · {timeAgo(project.time)}
           </div>
         </div>
@@ -536,11 +536,11 @@ export default function Dashboard() {
                           {formData.username.substring(0, 2).toUpperCase()}
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.text, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.text, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {formData.username}
-                            <Sparkles size={11} style={{ color: C.accent, opacity: 0.7, flexShrink: 0 }} />
+                            <Sparkles size={13} style={{ color: C.accent, opacity: 0.7, flexShrink: 0 }} />
                           </div>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {user?.email}
                           </div>
                         </div>
