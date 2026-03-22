@@ -11,7 +11,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
-import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown } from 'lucide-react';
+import { Play, Loader2, LogOut, Copy, Check, Terminal as TerminalIcon, ChevronDown, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -65,6 +65,7 @@ export default function EditorPage() {
   const [isExecuting,    setIsExecuting]    = useState(false);
   const [copied,         setCopied]         = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+  const [isChatOpen,     setIsChatOpen]     = useState(true);
   const [onlineUsers,    setOnlineUsers]    = useState([]);
   const [htmlPreview,    setHtmlPreview]    = useState('');
   const [cursors,        setCursors]        = useState({});
@@ -327,6 +328,22 @@ export default function EditorPage() {
             )}
           </div>
 
+          {/* Chat toggle */}
+          <button
+            onClick={() => setIsChatOpen(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '7px 14px', borderRadius: 9,
+              background: isChatOpen ? 'rgba(0,229,255,0.1)' : C.faint,
+              border: `1px solid ${isChatOpen ? C.accent + '50' : C.border}`,
+              fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600,
+              color: isChatOpen ? C.accent : C.muted, cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >
+            <MessageSquare size={13} />
+            Chat
+          </button>
+
           {/* Copy ID */}
           <button
             onClick={copyRoomId}
@@ -467,14 +484,24 @@ export default function EditorPage() {
         </div>
 
         {/* Chat sidebar */}
-        <aside style={{
-          width: 300, flexShrink: 0,
-          borderLeft: `1px solid ${C.border}`,
-          background: C.card,
-          display: 'flex', flexDirection: 'column',
-        }}>
-          <ChatBox roomId={roomId} />
-        </aside>
+        <AnimatePresence>
+          {isChatOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 300, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              style={{
+                flexShrink: 0, overflow: 'hidden',
+                borderLeft: `1px solid ${C.border}`,
+                background: C.card,
+                display: 'flex', flexDirection: 'column',
+              }}
+            >
+              <ChatBox roomId={roomId} />
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
 
       <style>{`
