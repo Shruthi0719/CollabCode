@@ -183,6 +183,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [roomId, setRoomId]       = useState('');
+  const [showNotifs, setShowNotifs] = useState(false);
 
   /* ── Real data from MongoDB ───────────────────────────────────── */
   const [stats, setStats]           = useState({ activeRooms: 0, collaborators: 0, status: 'Loading…' });
@@ -369,29 +370,102 @@ export default function Dashboard() {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button style={{
-              width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`,
-              background: C.faint, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: C.muted, cursor: 'pointer', transition: 'color 0.15s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.color = C.text}
-            onMouseLeave={e => e.currentTarget.style.color = C.muted}
-            >
-              <Bell size={14} />
-            </button>
+            {/* ── Notification Bell ─────────────────────────────── */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowNotifs(v => !v)}
+                style={{
+                  width: 36, height: 36, borderRadius: 10, border: `1px solid ${C.border}`,
+                  background: showNotifs ? C.accentBg : C.faint,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: showNotifs ? C.accent : C.muted, cursor: 'pointer', transition: 'all 0.15s',
+                  position: 'relative',
+                }}
+              >
+                <Bell size={14} />
+                {recentProjects.length > 0 && (
+                  <span style={{
+                    position: 'absolute', top: 6, right: 6,
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: C.accent, border: `1px solid ${C.bg}`,
+                  }} />
+                )}
+              </button>
+
+              {/* Dropdown */}
+              {showNotifs && (
+                <div style={{
+                  position: 'absolute', top: 44, right: 0, width: 320,
+                  background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 16, zIndex: 100,
+                  boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Notifications</span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.accent }}>{recentProjects.length} rooms</span>
+                  </div>
+                  <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                    {recentProjects.length === 0 ? (
+                      <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: C.muted }}>No activity yet</div>
+                    ) : recentProjects.map(p => {
+                      const id   = p.id || p._id;
+                      const name = p.name || `Room_${id}`;
+                      const lang = p.language ?? p.lang ?? 'Code';
+                      const ts   = p.lastActive ? new Date(p.lastActive) : null;
+                      const ago  = ts ? (() => {
+                        const diff = Math.floor((Date.now() - ts.getTime()) / 1000);
+                        if (diff < 60)   return `${diff}s ago`;
+                        if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+                        if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+                        return `${Math.floor(diff/86400)}d ago`;
+                      })() : '—';
+                      return (
+                        <div key={id}
+                          onClick={() => { navigate(`/room/${id}`); setShowNotifs(false); }}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12,
+                            padding: '12px 18px', cursor: 'pointer', transition: 'background 0.12s',
+                            borderBottom: `1px solid ${C.border}`,
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = C.faint}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <div style={{ width: 32, height: 32, borderRadius: 9, background: C.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent, flexShrink: 0 }}>
+                            <Code2 size={13} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              You joined <span style={{ color: C.accent }}>{name}</span>
+                            </div>
+                            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted }}>
+                              {lang} · {ago}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── User chip ─────────────────────────────────────── */}
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10,
+              display: 'flex', alignItems: 'center', gap: 8,
               background: C.faint, border: `1px solid ${C.border}`,
-              borderRadius: 10, padding: '6px 12px',
+              borderRadius: 10, padding: '5px 10px',
             }}>
               <div style={{
-                width: 22, height: 22, borderRadius: 8, background: C.accent,
+                width: 24, height: 24, borderRadius: 8, background: C.accent, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700, color: C.bg,
               }}>
                 {user?.username?.charAt(0).toUpperCase()}
               </div>
-              <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{user?.username}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.text, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user?.username}
+              </span>
             </div>
           </div>
         </header>
@@ -441,30 +515,38 @@ export default function Dashboard() {
 
                   {/* Profile card */}
                   <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, overflow: 'hidden' }}>
-                    {/* Banner */}
-                    <div style={{ height: 80, background: `linear-gradient(135deg, ${C.accent}18 0%, rgba(99,102,241,0.12) 100%)`, position: 'relative' }}>
-                      <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${C.faint} 1px, transparent 1px), linear-gradient(90deg, ${C.faint} 1px, transparent 1px)`, backgroundSize: '20px 20px' }} />
-                    </div>
-                    <div style={{ padding: '0 24px 24px' }}>
-                      <div style={{
-                        width: 56, height: 56, borderRadius: 14,
-                        background: C.card, border: `2px solid ${C.bg}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.accent,
-                        marginTop: -28, marginBottom: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
-                      }}>
-                        {formData.username.substring(0, 2).toUpperCase()}
+                    <div style={{ padding: '24px 24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+                      {/* Avatar row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{
+                          width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+                          background: C.accentBg, border: `1px solid ${C.accent}30`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: C.accent,
+                        }}>
+                          {formData.username.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: C.text, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {formData.username}
+                            <Sparkles size={11} style={{ color: C.accent, opacity: 0.7, flexShrink: 0 }} />
+                          </div>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {user?.email}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: C.text, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        {formData.username}
-                        <Sparkles size={12} style={{ color: C.accent, opacity: 0.7 }} />
-                      </div>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted, marginBottom: 12 }}>{user?.email}</div>
-                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 20 }}>{formData.bio}</div>
+
+                      {/* Bio */}
+                      {formData.bio && (
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{formData.bio}</div>
+                      )}
+
+                      {/* Button */}
                       <button
                         onClick={() => setActiveTab('profile')}
                         style={{
-                          width: '100%', padding: '10px 0', borderRadius: 10, cursor: 'pointer',
+                          width: '100%', padding: '9px 0', borderRadius: 10, cursor: 'pointer',
                           background: C.faint, border: `1px solid ${C.border}`,
                           fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.15s',
@@ -555,7 +637,7 @@ export default function Dashboard() {
                             </button>
                           </div>
                         ) : (
-                          recentProjects.slice(0, 5).map(p => (
+                          recentProjects.slice(0, 3).map(p => (
                             <ProjectRow key={p.id || p._id} project={{ id: p.id || p._id, name: p.name, time: p.lastActive ?? p.time ?? '—', lang: p.language ?? p.lang ?? 'Code' }} onClick={() => navigate(`/room/${p.id || p._id}`)} />
                           ))
                         )}
