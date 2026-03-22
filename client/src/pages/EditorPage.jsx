@@ -470,7 +470,7 @@ export default function EditorPage() {
           {isProblemOpen && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
+              animate={{ width: 380, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
               style={{ flexShrink: 0, overflow: 'hidden', borderRight: `1px solid ${C.border}` }}

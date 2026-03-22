@@ -37,32 +37,31 @@ export default function ProblemPanel({ language, onLoadProblem }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        {/* Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: C.text, margin: 0 }}>{selected.title}</h2>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 700, color: DIFF_COLOR[selected.difficulty], background: `${DIFF_COLOR[selected.difficulty]}18`, border: `1px solid ${DIFF_COLOR[selected.difficulty]}35`, padding: '3px 10px', borderRadius: 999 }}>
+          <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: C.text, margin: 0 }}>{selected.title}</h2>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: DIFF_COLOR[selected.difficulty], background: `${DIFF_COLOR[selected.difficulty]}18`, border: `1px solid ${DIFF_COLOR[selected.difficulty]}35`, padding: '4px 12px', borderRadius: 999 }}>
             {selected.difficulty}
           </span>
         </div>
 
         {/* Description */}
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.75, marginBottom: 20, whiteSpace: 'pre-line' }}>
+        <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.75)', lineHeight: 1.8, marginBottom: 24, whiteSpace: 'pre-line' }}>
           {selected.description}
         </p>
 
         {/* Examples */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Examples</div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.accent, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 12 }}>Examples</div>
           {selected.examples.map((ex, i) => (
-            <div key={i} style={{ background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.muted, marginBottom: 4 }}>
+            <div key={i} style={{ background: C.faint, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px', marginBottom: 10 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: C.muted, marginBottom: 6 }}>
                 <span style={{ color: C.text }}>Input: </span>{ex.input}
               </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.muted, marginBottom: ex.explanation ? 4 : 0 }}>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: C.muted, marginBottom: ex.explanation ? 6 : 0 }}>
                 <span style={{ color: C.text }}>Output: </span>{ex.output}
               </div>
               {ex.explanation && (
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.muted }}>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.muted }}>
                   <span style={{ color: C.text }}>Why: </span>{ex.explanation}
                 </div>
               )}
@@ -71,12 +70,12 @@ export default function ProblemPanel({ language, onLoadProblem }) {
         </div>
 
         {/* Constraints */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.accent, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 10 }}>Constraints</div>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.accent, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: 12 }}>Constraints</div>
           {selected.constraints.map((c, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-              <Circle size={4} style={{ color: C.accent, marginTop: 6, flexShrink: 0, fill: C.accent }} />
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.muted }}>{c}</span>
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+              <Circle size={5} style={{ color: C.accent, marginTop: 7, flexShrink: 0, fill: C.accent }} />
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: C.muted }}>{c}</span>
             </div>
           ))}
         </div>
@@ -121,10 +120,10 @@ export default function ProblemPanel({ language, onLoadProblem }) {
             onMouseLeave={e => e.currentTarget.style.background = 'none'}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: C.muted, minWidth: 22 }}>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: C.muted, minWidth: 26 }}>
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{p.title}</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{p.title}</span>
             </div>
             <span style={{
               fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 700,
