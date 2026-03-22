@@ -511,7 +511,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 20, alignItems: 'start' }}>
 
                   {/* Profile card */}
                   <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 24, overflow: 'hidden' }}>
