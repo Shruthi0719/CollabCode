@@ -318,7 +318,7 @@ export default function EditorPage() {
   };
 
   const copyInviteLink = () => {
-    const link = `${FRONTEND}/room/${roomId}`;
+    const link = `${window.location.origin}/room/${roomId}`;
     navigator.clipboard.writeText(link);
     toast.success('Invite link copied — share it with your team!');
   };
