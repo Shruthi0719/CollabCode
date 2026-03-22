@@ -132,6 +132,15 @@ function Stat({ icon: Icon, label, value, accent = C.accent }) {
 /* ── Project row ────────────────────────────────────────────────── */
 const LANG_C = { JavaScript: '#f0db4f', Python: '#4b8bbe', TypeScript: '#3178c6', Rust: '#ce412b' };
 
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60)    return `${diff}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 function ProjectRow({ project, onClick }) {
   const col = LANG_C[project.lang] ?? C.accent;
   return (
@@ -156,7 +165,7 @@ function ProjectRow({ project, onClick }) {
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 3 }}>{project.name}</div>
           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: C.muted }}>
-            #{project.id} · {project.time}
+            #{project.id} · {timeAgo(project.time)}
           </div>
         </div>
       </div>
