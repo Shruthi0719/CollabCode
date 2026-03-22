@@ -127,6 +127,7 @@ module.exports = (io) => {
         roomHistory[roomId] = roomHistory[roomId].slice(-500);
 
       socket.emit('operation-ack', { version: roomVersion[roomId] });
+      // Broadcast op only (no full code — full code comes via code-change debounce)
       socket.to(roomId).emit('operation', { op: transformedOp, version: roomVersion[roomId] });
       Room.findByIdAndUpdate(roomId, { lastActive: new Date() }).exec().catch(() => {});
     });
@@ -141,6 +142,10 @@ module.exports = (io) => {
 
     socket.on('code-change', ({ roomId, code }) => {
       if (!roomId) return;
+      // Reset OT history on full sync — this is the reconciliation point
+      roomVersion[roomId] = 0;
+      roomHistory[roomId] = [];
+      // Broadcast to ALL others as a full code snapshot
       socket.to(roomId).emit('code-update', code);
       Room.findByIdAndUpdate(roomId, { code, lastActive: new Date() }).exec().catch(() => {});
     });

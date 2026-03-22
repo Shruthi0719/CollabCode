@@ -150,39 +150,64 @@ export default function EditorPage() {
     if (!roomId || !username) return;
     if (!hasJoined.current) { socket.emit('join-room', { roomId, username }); hasJoined.current = true; }
 
-    const handleInitVersion    = ({ version }) => { versionRef.current = version; };
-    const handleOperation = ({ op, version }) => {
-      versionRef.current = version;
-      let transformedOp = op;
-      for (const pending of pendingOps.current) transformedOp = transform(transformedOp, pending);
+  const handleInitVersion    = ({ version }) => { versionRef.current = version; };
 
-      // Apply directly to Monaco model to avoid full re-render + cursor reset
-      if (editorRef.current && monacoRef.current) {
-        const model  = editorRef.current.getModel();
-        const monaco = monacoRef.current;
-        if (model) {
+  // ── Reliable sync: apply full code snapshots from server ──────────
+  // Instead of OT ops (which diverge under concurrent edits),
+  // we receive full code snapshots and apply them only when we have
+  // no pending local edits (to avoid overwriting user's typing).
+  const handleOperation = ({ op, version, fullCode }) => {
+    versionRef.current = version;
+
+    // If server sends full code snapshot, use that (most reliable)
+    if (fullCode !== undefined) {
+      if (pendingOps.current.length === 0) {
+        // Safe to apply — no local edits in flight
+        if (fullCode !== codeRef.current) {
           applyingRemote.current = true;
-          if (transformedOp.type === 'insert') {
-            const pos   = model.getPositionAt(transformedOp.position);
-            const range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
-            model.applyEdits([{ range, text: transformedOp.text, forceMoveMarkers: true }]);
-          } else if (transformedOp.type === 'delete') {
-            const startPos = model.getPositionAt(transformedOp.position);
-            const endPos   = model.getPositionAt(transformedOp.position + transformedOp.length);
-            const range    = new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
-            model.applyEdits([{ range, text: '', forceMoveMarkers: true }]);
+          const model = editorRef.current?.getModel();
+          if (model && model.getValue() !== fullCode) {
+            // Preserve cursor position
+            const pos = editorRef.current.getPosition();
+            model.setValue(fullCode);
+            if (pos) editorRef.current.setPosition(pos);
           }
-          codeRef.current        = model.getValue();
+          codeRef.current = fullCode;
           applyingRemote.current = false;
-          return; // skip setCode — model is already updated
         }
       }
+      return;
+    }
 
-      // Fallback if editor not mounted yet
-      applyingRemote.current = true;
-      const newCode = applyOp(codeRef.current, transformedOp);
-      setCode(newCode); codeRef.current = newCode; applyingRemote.current = false;
-    };
+    // Fallback: apply OT op with transform
+    let transformedOp = op;
+    for (const pending of pendingOps.current) transformedOp = transform(transformedOp, pending);
+
+    if (editorRef.current && monacoRef.current) {
+      const model  = editorRef.current.getModel();
+      const monaco = monacoRef.current;
+      if (model) {
+        applyingRemote.current = true;
+        if (transformedOp.type === 'insert') {
+          const pos   = model.getPositionAt(transformedOp.position);
+          const range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+          model.applyEdits([{ range, text: transformedOp.text, forceMoveMarkers: true }]);
+        } else if (transformedOp.type === 'delete') {
+          const startPos = model.getPositionAt(transformedOp.position);
+          const endPos   = model.getPositionAt(transformedOp.position + transformedOp.length);
+          const range    = new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+          model.applyEdits([{ range, text: '', forceMoveMarkers: true }]);
+        }
+        codeRef.current        = model.getValue();
+        applyingRemote.current = false;
+        return;
+      }
+    }
+
+    applyingRemote.current = true;
+    const newCode = applyOp(codeRef.current, transformedOp);
+    setCode(newCode); codeRef.current = newCode; applyingRemote.current = false;
+  };
     const handleOperationAck   = ({ version }) => { versionRef.current = version; pendingOps.current = pendingOps.current.slice(1); };
     const handleCodeUpdate = (newCode) => {
       if (newCode !== codeRef.current) {
@@ -248,9 +273,10 @@ export default function EditorPage() {
     });
   };
 
+  const syncDebounce = useRef(null);
+
   const handleCodeChange = useCallback((value, event) => {
     if (applyingRemote.current) return;
-    // Use model value as source of truth
     const currentCode = editorRef.current?.getModel()?.getValue() ?? value;
     setCode(currentCode);
     codeRef.current = currentCode;
@@ -265,6 +291,13 @@ export default function EditorPage() {
         }
       }
     }
+
+    // Debounced full-code broadcast — resolves any divergence after 800ms of no typing
+    if (syncDebounce.current) clearTimeout(syncDebounce.current);
+    syncDebounce.current = setTimeout(() => {
+      pendingOps.current = []; // clear pending after debounce
+      socket.emit('code-change', { roomId, code: codeRef.current });
+    }, 800);
   }, [roomId, username]);
 
   const handleLanguageChange = (newLang) => {
