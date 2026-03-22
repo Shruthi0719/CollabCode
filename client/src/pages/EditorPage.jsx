@@ -146,16 +146,54 @@ export default function EditorPage() {
     if (!hasJoined.current) { socket.emit('join-room', { roomId, username }); hasJoined.current = true; }
 
     const handleInitVersion    = ({ version }) => { versionRef.current = version; };
-    const handleOperation      = ({ op, version }) => {
+    const handleOperation = ({ op, version }) => {
       versionRef.current = version;
       let transformedOp = op;
       for (const pending of pendingOps.current) transformedOp = transform(transformedOp, pending);
+
+      // Apply directly to Monaco model to avoid full re-render + cursor reset
+      if (editorRef.current && monacoRef.current) {
+        const model  = editorRef.current.getModel();
+        const monaco = monacoRef.current;
+        if (model) {
+          applyingRemote.current = true;
+          if (transformedOp.type === 'insert') {
+            const pos   = model.getPositionAt(transformedOp.position);
+            const range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
+            model.applyEdits([{ range, text: transformedOp.text, forceMoveMarkers: true }]);
+          } else if (transformedOp.type === 'delete') {
+            const startPos = model.getPositionAt(transformedOp.position);
+            const endPos   = model.getPositionAt(transformedOp.position + transformedOp.length);
+            const range    = new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+            model.applyEdits([{ range, text: '', forceMoveMarkers: true }]);
+          }
+          codeRef.current        = model.getValue();
+          applyingRemote.current = false;
+          return; // skip setCode — model is already updated
+        }
+      }
+
+      // Fallback if editor not mounted yet
       applyingRemote.current = true;
       const newCode = applyOp(codeRef.current, transformedOp);
       setCode(newCode); codeRef.current = newCode; applyingRemote.current = false;
     };
     const handleOperationAck   = ({ version }) => { versionRef.current = version; pendingOps.current = pendingOps.current.slice(1); };
-    const handleCodeUpdate     = (newCode) => { if (newCode !== codeRef.current) { codeRef.current = newCode; setCode(newCode); } };
+    const handleCodeUpdate = (newCode) => {
+      if (newCode !== codeRef.current) {
+        codeRef.current = newCode;
+        if (editorRef.current) {
+          const model = editorRef.current.getModel();
+          if (model && model.getValue() !== newCode) {
+            applyingRemote.current = true;
+            model.setValue(newCode);
+            applyingRemote.current = false;
+          }
+        } else {
+          setCode(newCode);
+        }
+      }
+    };
     const handleLanguageChange = (newLang) => {
       if (newLang !== languageRef.current) {
         setLanguage(newLang); versionRef.current = 0; pendingOps.current = [];
@@ -207,7 +245,11 @@ export default function EditorPage() {
 
   const handleCodeChange = useCallback((value, event) => {
     if (applyingRemote.current) return;
-    setCode(value);
+    // Use model value as source of truth
+    const currentCode = editorRef.current?.getModel()?.getValue() ?? value;
+    setCode(currentCode);
+    codeRef.current = currentCode;
+
     if (event?.changes) {
       for (const change of event.changes) {
         const ops    = monacoChangeToOp(change, versionRef.current, username);
