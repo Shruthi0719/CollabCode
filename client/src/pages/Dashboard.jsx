@@ -16,7 +16,7 @@ import {
   Plus, Code2, LogOut, Rocket, Hash,
   LayoutGrid, Clock, User, Settings,
   Search, Bell, Sparkles, Loader2, Monitor, Database,
-  Zap, Globe, Shield, ArrowUpRight, MoreHorizontal, Terminal,
+  Zap, Globe, Shield, ArrowUpRight, MoreHorizontal, Terminal, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { toast, friendlyError } from '../utils/toast';
@@ -142,10 +142,10 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function ProjectRow({ project, onClick }) {
+function ProjectRow({ project, onClick, onDelete }) {
   const col = LANG_C[project.lang] ?? C.accent;
   return (
-    <motion.div whileHover={{ x: 4 }} onClick={onClick}
+    <motion.div whileHover={{ x: 4 }}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '14px 16px', borderRadius: 12,
@@ -155,7 +155,8 @@ function ProjectRow({ project, onClick }) {
       onMouseEnter={e => { e.currentTarget.style.background = C.faint; e.currentTarget.style.borderColor = C.border; }}
       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      {/* Clickable area */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1 }} onClick={onClick}>
         <div style={{
           width: 36, height: 36, borderRadius: 10,
           background: C.faint, border: `1px solid ${C.border}`,
@@ -170,7 +171,9 @@ function ProjectRow({ project, onClick }) {
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+
+      {/* Right side */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{
           fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 700,
           padding: '3px 10px', borderRadius: 999,
@@ -178,7 +181,22 @@ function ProjectRow({ project, onClick }) {
         }}>
           {project.lang}
         </span>
-        <ArrowUpRight size={13} style={{ color: C.muted }} />
+        <ArrowUpRight size={13} style={{ color: C.muted }} onClick={onClick} />
+        {/* Delete button */}
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(project.id); }}
+          title="Delete room"
+          style={{
+            width: 26, height: 26, borderRadius: 7, border: 'none',
+            background: 'transparent', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'rgba(248,113,113,0.4)', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; e.currentTarget.style.color = '#f87171'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(248,113,113,0.4)'; }}
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </motion.div>
   );
@@ -292,6 +310,23 @@ export default function Dashboard() {
   const handleCreateRoom = () => {
     const id = Math.random().toString(36).substring(2, 10).toUpperCase();
     navigate(`/room/${id}`);
+  };
+
+  const deleteRoom = async (roomId) => {
+    if (!window.confirm('Delete this room? This cannot be undone.')) return;
+    try {
+      const token = localStorage.getItem('cc_token');
+      const res = await fetch(`${BACKEND}/api/rooms/${roomId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Failed');
+      setRecent(prev => prev.filter(p => (p.id || p._id) !== roomId));
+      toast.success('Room deleted');
+    } catch {
+      toast.error('Could not delete room — try again');
+    }
   };
 
   if (loading) return (
@@ -651,7 +686,7 @@ export default function Dashboard() {
                           </div>
                         ) : (
                           recentProjects.slice(0, 3).map(p => (
-                            <ProjectRow key={p.id || p._id} project={{ id: p.id || p._id, name: p.name, time: p.lastActive ?? p.time ?? '—', lang: p.language ?? p.lang ?? 'Code' }} onClick={() => navigate(`/room/${p.id || p._id}`)} />
+                            <ProjectRow key={p.id || p._id} project={{ id: p.id || p._id, name: p.name, time: p.lastActive ?? p.time ?? '—', lang: p.language ?? p.lang ?? 'Code' }} onClick={() => navigate(`/room/${p.id || p._id}`)} onDelete={deleteRoom} />
                           ))
                         )}
                       </div>
@@ -701,8 +736,14 @@ export default function Dashboard() {
                           <div style={{ width: 36, height: 36, borderRadius: 10, background: C.faint, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.accent }}>
                             <Monitor size={16} strokeWidth={1.75} />
                           </div>
-                          <button style={{ padding: 6, borderRadius: 8, background: 'none', border: 'none', color: C.muted, cursor: 'pointer' }}>
-                            <MoreHorizontal size={14} />
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteRoom(id); }}
+                            title="Delete room"
+                            style={{ padding: 6, borderRadius: 8, background: 'none', border: 'none', color: 'rgba(248,113,113,0.4)', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; e.currentTarget.style.color = '#f87171'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(248,113,113,0.4)'; }}
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
                         <div style={{ fontWeight: 600, fontSize: 14, color: C.text, marginBottom: 6 }}>{p.name}</div>
